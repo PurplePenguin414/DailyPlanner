@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Planner</title>
+<link rel="stylesheet" href="app.css?v=1">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Daily Planner</h1>
+    <div class="topbar-actions">
+      <button id="darkModeToggle" class="icon-btn" title="Toggle dark mode">🌙</button>
+      <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+      <button id="logoutBtn" class="icon-btn" title="Log out">⎋</button>
+    </div>
+  </header>
+
+  <nav class="view-tabs">
+    <button class="view-tab-btn active" data-view="day">Day</button>
+    <button class="view-tab-btn" data-view="month">Month</button>
+  </nav>
+
+  <main id="mainContent">
+
+    <!-- DAY VIEW -->
+    <div id="dayView" class="view-panel">
+      <div class="day-toolbar">
+        <button id="prevDayBtn" class="icon-btn">‹</button>
+        <div class="day-label" id="dayLabel">—</div>
+        <button id="nextDayBtn" class="icon-btn">›</button>
+        <button id="todayBtn" class="secondary-btn">Today</button>
+      </div>
+      <div class="day-actions">
+        <button id="editWeekBtn" class="secondary-btn">Edit This Week's Blocks</button>
+        <button id="addEntryBtn" class="primary-btn">+ Add Entry</button>
+      </div>
+      <div class="timeline-wrap">
+        <div id="timeline" class="timeline"></div>
+      </div>
+    </div>
+
+    <!-- MONTH VIEW -->
+    <div id="monthView" class="view-panel hidden">
+      <div class="month-toolbar">
+        <button id="prevMonthBtn" class="icon-btn">‹</button>
+        <div class="month-label" id="monthLabel">—</div>
+        <button id="nextMonthBtn" class="icon-btn">›</button>
+      </div>
+      <div class="month-grid" id="monthGrid"></div>
+    </div>
+
+  </main>
+
+  <!-- Add/Edit Entry Modal -->
+  <div id="entryModal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="closeEntryModalBtn">&times;</button>
+      <h2 id="entryModalTitle">New Entry</h2>
+      <form id="entryForm">
+        <input type="hidden" id="entryId">
+        <input type="hidden" id="entryDate">
+
+        <div class="form-group">
+          <label for="entryTitle">Title</label>
+          <input type="text" id="entryTitle" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="entryStart">Start Time</label>
+            <input type="time" id="entryStart">
+          </div>
+          <div class="form-group">
+            <label for="entryEnd">End Time</label>
+            <input type="time" id="entryEnd">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="entryNotes">Notes</label>
+          <textarea id="entryNotes" rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="entryColor">Color</label>
+          <input type="color" id="entryColor" value="#2e7d32">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="deleteEntryBtn" class="danger-btn hidden">Delete</button>
+          <button type="submit" class="primary-btn">Save Entry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Weekly Blocks Editor Modal -->
+  <div id="weekModal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="closeWeekModalBtn">&times;</button>
+      <h2>Weekly Blocks — <span id="weekModalRange"></span></h2>
+      <button id="copyLastWeekBtn" class="secondary-btn">Copy Last Week's Blocks</button>
+
+      <div id="weekBlocksByDay"></div>
+
+      <form id="addBlockForm" class="add-block-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="blockDay">Day</label>
+            <select id="blockDay">
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+              <option value="0">Sunday</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="blockLabel">Label</label>
+            <input type="text" id="blockLabel" placeholder="e.g. Work">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="blockStart">Start</label>
+            <input type="time" id="blockStart">
+          </div>
+          <div class="form-group">
+            <label for="blockEnd">End</label>
+            <input type="time" id="blockEnd">
+          </div>
+          <div class="form-group">
+            <label for="blockColor">Color</label>
+            <input type="color" id="blockColor" value="#4a6fa5">
+          </div>
+        </div>
+        <button type="submit" class="primary-btn">Add Block</button>
+      </form>
+
+      <div class="modal-actions">
+        <button type="button" id="closeWeekModalBtn2" class="secondary-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal (Google Calendar connect + password) -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="closeSettingsModalBtn">&times;</button>
+      <h2>Settings</h2>
+
+      <h3>Google Calendar</h3>
+      <p id="gcalStatus" class="muted-text">Checking connection…</p>
+      <button id="gcalConnectBtn" class="secondary-btn">Connect Google Calendar</button>
+      <button id="gcalSyncBtn" class="secondary-btn hidden">Sync Now</button>
+      <button id="gcalDisconnectBtn" class="danger-btn hidden">Disconnect</button>
+
+      <h3 class="settings-subhead">Change Password</h3>
+      <form id="changePasswordForm">
+        <div class="form-group">
+          <label for="currentPassword">Current Password</label>
+          <input type="password" id="currentPassword" required>
+        </div>
+        <div class="form-group">
+          <label for="newPassword">New Password</label>
+          <input type="password" id="newPassword" required minlength="8">
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">Confirm New Password</label>
+          <input type="password" id="confirmPassword" required minlength="8">
+        </div>
+        <p id="settingsError" class="error-text hidden"></p>
+        <p id="settingsSuccess" class="success-text hidden"></p>
+        <button type="submit" class="primary-btn">Update Password</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>

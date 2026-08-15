@@ -1,0 +1,11 @@
+services:
+  daily-planner:
+    build: .
+    container_name: daily-planner
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3015:3000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env

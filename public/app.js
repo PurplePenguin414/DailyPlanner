@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindDayView();
   bindMonthView();
   bindEntryModal();
+  bindBlockEditModal();
   bindWeekModal();
   bindSettingsModal();
   renderTimelineSkeleton();
@@ -176,6 +177,8 @@ function renderTimelineEntries(blocks, entries) {
     `;
     if (!isBlock) {
       el.addEventListener('click', () => openEntryModal(item));
+    } else {
+      el.addEventListener('click', () => openBlockEditModal(item));
     }
     timeline.appendChild(el);
   };
@@ -224,7 +227,7 @@ function bindEntryModal() {
 function openEntryModal(entry) {
   const form = document.getElementById('entryForm');
   form.reset();
-  const isGoogle = entry && entry.source === 'google';
+  const isReadOnly = entry && entry.source !== 'manual';
 
   document.getElementById('entryId').value = entry ? entry.id : '';
   document.getElementById('entryDate').value = entry ? entry.entry_date : currentDate;
@@ -234,15 +237,21 @@ function openEntryModal(entry) {
   document.getElementById('entryNotes').value = entry ? (entry.notes || '') : '';
   document.getElementById('entryColor').value = entry ? (entry.color || '#2e7d32') : '#2e7d32';
 
-  document.getElementById('entryModalTitle').textContent = entry ? (isGoogle ? 'Google Calendar Event' : 'Edit Entry') : 'New Entry';
-  document.getElementById('deleteEntryBtn').classList.toggle('hidden', !entry || isGoogle);
+  document.getElementById('entryModalTitle').textContent = entry ? (isReadOnly ? sourceLabel(entry.source) : 'Edit Entry') : 'New Entry';
+  document.getElementById('deleteEntryBtn').classList.toggle('hidden', !entry || isReadOnly);
 
   const saveBtn = form.querySelector('.primary-btn');
   const inputs = form.querySelectorAll('input, textarea');
-  inputs.forEach(i => i.disabled = isGoogle);
-  saveBtn.classList.toggle('hidden', isGoogle);
+  inputs.forEach(i => i.disabled = isReadOnly);
+  saveBtn.classList.toggle('hidden', isReadOnly);
 
   document.getElementById('entryModal').classList.remove('hidden');
+}
+
+function sourceLabel(source) {
+  if (source === 'google') return 'Google Calendar Event';
+  if (source === 'medtracker') return 'Appointment (from Med & Appointment Tracker)';
+  return 'Entry';
 }
 
 function closeEntryModal() {
@@ -324,12 +333,19 @@ async function loadMonthView() {
     const isOtherMonth = cursor.getMonth() !== month;
     const isToday = dStr === today;
     const dayEntries = entriesByDate[dStr] || [];
-    const dots = dayEntries.slice(0, 4).map(e => `<span class="month-day-dot" style="background:${e.color || '#2e7d32'}"></span>`).join('');
+    const visible = dayEntries.slice(0, 3);
+    const remaining = dayEntries.length - visible.length;
+    const eventsHtml = visible.map(e => `
+      <div class="month-day-event" title="${escapeHtml(e.title)}">
+        <span class="month-day-dot" style="background:${e.color || '#2e7d32'}"></span>
+        <span>${escapeHtml(e.title)}</span>
+      </div>
+    `).join('') + (remaining > 0 ? `<div class="month-day-more">+${remaining} more</div>` : '');
 
     html += `
       <div class="month-day ${isOtherMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}" data-date="${dStr}">
         <div class="month-day-num">${cursor.getDate()}</div>
-        <div class="month-day-dots">${dots}</div>
+        <div class="month-day-dots">${eventsHtml}</div>
       </div>
     `;
     cursor.setDate(cursor.getDate() + 1);
@@ -441,6 +457,51 @@ async function copyLastWeek() {
 }
 
 // ================================================================
+// SINGLE BLOCK EDIT (click a weekly block directly in the timeline)
+// ================================================================
+function bindBlockEditModal() {
+  document.getElementById('closeBlockEditModalBtn').addEventListener('click', closeBlockEditModal);
+  document.getElementById('blockEditModal').addEventListener('click', (e) => { if (e.target.id === 'blockEditModal') closeBlockEditModal(); });
+  document.getElementById('blockEditForm').addEventListener('submit', saveBlockEdit);
+  document.getElementById('deleteBlockEditBtn').addEventListener('click', deleteBlockEdit);
+}
+
+function openBlockEditModal(block) {
+  document.getElementById('blockEditId').value = block.id;
+  document.getElementById('blockEditLabel').value = block.label;
+  document.getElementById('blockEditStart').value = block.start_time;
+  document.getElementById('blockEditEnd').value = block.end_time;
+  document.getElementById('blockEditColor').value = block.color || '#4a6fa5';
+  document.getElementById('blockEditModal').classList.remove('hidden');
+}
+
+function closeBlockEditModal() {
+  document.getElementById('blockEditModal').classList.add('hidden');
+}
+
+async function saveBlockEdit(e) {
+  e.preventDefault();
+  const id = document.getElementById('blockEditId').value;
+  const payload = {
+    label: document.getElementById('blockEditLabel').value,
+    start_time: document.getElementById('blockEditStart').value,
+    end_time: document.getElementById('blockEditEnd').value,
+    color: document.getElementById('blockEditColor').value
+  };
+  await fetch(`/api/weekly-blocks/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  closeBlockEditModal();
+  loadDayView();
+}
+
+async function deleteBlockEdit() {
+  const id = document.getElementById('blockEditId').value;
+  if (!confirm('Remove this block for this specific day? (This only affects this one day — not the whole week template.)')) return;
+  await fetch(`/api/weekly-blocks/${id}`, { method: 'DELETE' });
+  closeBlockEditModal();
+  loadDayView();
+}
+
+// ================================================================
 // SETTINGS (Google Calendar + password)
 // ================================================================
 function bindSettingsModal() {
@@ -451,6 +512,8 @@ function bindSettingsModal() {
   document.getElementById('gcalConnectBtn').addEventListener('click', connectGoogleCalendar);
   document.getElementById('gcalSyncBtn').addEventListener('click', syncGoogleCalendar);
   document.getElementById('gcalDisconnectBtn').addEventListener('click', disconnectGoogleCalendar);
+  document.getElementById('medtrackerSyncBtn').addEventListener('click', syncMedTracker);
+  document.getElementById('icalCopyBtn').addEventListener('click', copyIcalUrl);
 
   document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -487,6 +550,78 @@ function bindSettingsModal() {
 async function openSettingsModal() {
   document.getElementById('settingsModal').classList.remove('hidden');
   await refreshGoogleStatus();
+  await refreshMedTrackerStatus();
+  await refreshIcalUrl();
+}
+
+async function refreshIcalUrl() {
+  const res = await fetch('/api/ical-url');
+  const data = await res.json();
+  const statusEl = document.getElementById('icalStatus');
+  const rowEl = document.getElementById('icalUrlRow');
+
+  if (data.configured) {
+    statusEl.textContent = 'Ready to subscribe:';
+    document.getElementById('icalUrlField').value = data.url;
+    rowEl.classList.remove('hidden');
+  } else {
+    statusEl.textContent = 'Not configured — set ICAL_FEED_KEY in .env.';
+    rowEl.classList.add('hidden');
+  }
+}
+
+function copyIcalUrl() {
+  const field = document.getElementById('icalUrlField');
+  field.select();
+  navigator.clipboard.writeText(field.value).then(() => {
+    const btn = document.getElementById('icalCopyBtn');
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  });
+}
+
+async function refreshMedTrackerStatus() {
+  const res = await fetch('/api/medtracker/status');
+  const data = await res.json();
+  const statusEl = document.getElementById('medtrackerStatus');
+  const syncBtn = document.getElementById('medtrackerSyncBtn');
+
+  if (data.configured) {
+    statusEl.textContent = `Configured. Last synced: ${data.last_synced_at ? new Date(data.last_synced_at).toLocaleString() : 'never'}.`;
+    syncBtn.classList.remove('hidden');
+  } else {
+    statusEl.textContent = 'Not configured — set MEDTRACKER_API_URL and MEDTRACKER_API_KEY in .env.';
+    syncBtn.classList.add('hidden');
+  }
+}
+
+async function syncMedTracker() {
+  const start = todayStr();
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + 60);
+  const end = dateToStr(endDate);
+
+  const btn = document.getElementById('medtrackerSyncBtn');
+  btn.textContent = 'Syncing…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/medtracker/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start, end })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Sync failed');
+    alert(`Synced ${data.synced} appointment(s).`);
+    await refreshMedTrackerStatus();
+    loadDayView();
+    if (currentView === 'month') loadMonthView();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    btn.textContent = 'Sync Now';
+    btn.disabled = false;
+  }
 }
 
 async function refreshGoogleStatus() {

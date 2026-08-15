@@ -135,7 +135,7 @@ app.post('/api/day-entries', requireAuth, (req, res) => {
 app.put('/api/day-entries/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM day_entries WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.source === 'google') return res.status(400).json({ error: 'Google Calendar events are read-only here — edit them in Google Calendar instead' });
+  if (existing.source !== 'manual') return res.status(400).json({ error: `Entries synced from ${existing.source} are read-only here — edit them at the source instead` });
   const { start_time, end_time, title, notes, color } = req.body;
   db.prepare(`
     UPDATE day_entries SET start_time=?, end_time=?, title=?, notes=?, color=?, updated_at=datetime('now') WHERE id=?
@@ -146,13 +146,27 @@ app.put('/api/day-entries/:id', requireAuth, (req, res) => {
 app.delete('/api/day-entries/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM day_entries WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.source === 'google') return res.status(400).json({ error: 'Google Calendar events are read-only here — delete them in Google Calendar instead' });
+  if (existing.source !== 'manual') return res.status(400).json({ error: `Entries synced from ${existing.source} are read-only here — delete them at the source instead` });
   db.prepare('DELETE FROM day_entries WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
 
 // ---- Google Calendar OAuth + sync ----
 app.use('/api/google', requireAuth, require('./routes/google-calendar'));
+
+// ---- Med & Appointment Tracker sync ----
+app.use('/api/medtracker', requireAuth, require('./routes/medtracker'));
+
+// ---- iCal feed (NOT behind requireAuth — calendar apps poll this directly
+// with no login flow; it's protected by its own dedicated key instead) ----
+app.use('/api/ical', require('./routes/ical'));
+
+// Authenticated endpoint so only a logged-in user can retrieve their own feed
+// URL to copy into Apple Calendar — kept separate from the public feed route above.
+app.get('/api/ical-url', requireAuth, (req, res) => {
+  if (!process.env.ICAL_FEED_KEY) return res.json({ configured: false });
+  res.json({ configured: true, url: `${APP_URL}/api/ical/feed.ics?key=${process.env.ICAL_FEED_KEY}` });
+});
 
 app.listen(PORT, () => {
   console.log(`Daily Planner running on port ${PORT}`);

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Daily Planner</title>
-<link rel="stylesheet" href="app.css?v=1">
+<link rel="stylesheet" href="app.css?v=2">
 </head>
 <body>
   <header class="topbar">
@@ -158,6 +158,18 @@
       <button id="gcalSyncBtn" class="secondary-btn hidden">Sync Now</button>
       <button id="gcalDisconnectBtn" class="danger-btn hidden">Disconnect</button>
 
+      <h3>Med &amp; Appointment Tracker</h3>
+      <p id="medtrackerStatus" class="muted-text">Checking connection…</p>
+      <button id="medtrackerSyncBtn" class="secondary-btn hidden">Sync Now</button>
+
+      <h3>Apple / Google Calendar Subscription</h3>
+      <p class="muted-text">Subscribe to this URL in Apple Calendar or Google Calendar to see everything here — updates automatically, refreshes roughly every hour.</p>
+      <p id="icalStatus" class="muted-text">Checking…</p>
+      <div id="icalUrlRow" class="hidden" style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+        <input type="text" id="icalUrlField" readonly style="flex:1;">
+        <button id="icalCopyBtn" class="secondary-btn">Copy</button>
+      </div>
+
       <h3 class="settings-subhead">Change Password</h3>
       <form id="changePasswordForm">
         <div class="form-group">
@@ -179,6 +191,39 @@
     </div>
   </div>
 
-  <script src="app.js?v=1"></script>
+  <!-- Edit Single Block Modal -->
+  <div id="blockEditModal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="closeBlockEditModalBtn">&times;</button>
+      <h2>Edit Block</h2>
+      <form id="blockEditForm">
+        <input type="hidden" id="blockEditId">
+        <div class="form-group">
+          <label for="blockEditLabel">Label</label>
+          <input type="text" id="blockEditLabel" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="blockEditStart">Start Time</label>
+            <input type="time" id="blockEditStart" required>
+          </div>
+          <div class="form-group">
+            <label for="blockEditEnd">End Time</label>
+            <input type="time" id="blockEditEnd" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="blockEditColor">Color</label>
+          <input type="color" id="blockEditColor">
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="deleteBlockEditBtn" class="danger-btn">Delete This Block</button>
+          <button type="submit" class="primary-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js?v=4"></script>
 </body>
 </html>

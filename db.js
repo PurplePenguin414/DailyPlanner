@@ -164,6 +164,27 @@ function migrateDayEntriesIfNeeded() {
 }
 migrateDayEntriesIfNeeded();
 
+// Safe, additive migration: 'until_date' may not exist on recurring_series
+// if it was created before this feature. ADD COLUMN is safe in SQLite for a
+// plain nullable column — no full table rebuild needed here, unlike the
+// day_entries CHECK-constraint cases above.
+function migrateRecurringSeriesIfNeeded() {
+  const cols = db.prepare("PRAGMA table_info(recurring_series)").all().map(c => c.name);
+  if (!cols.includes('until_date')) {
+    db.exec('ALTER TABLE recurring_series ADD COLUMN until_date TEXT');
+    console.log('Migrated recurring_series table: added until_date column.');
+  }
+  if (!cols.includes('monthly_mode')) {
+    db.exec(`
+      ALTER TABLE recurring_series ADD COLUMN monthly_mode TEXT DEFAULT 'day_of_month';
+      ALTER TABLE recurring_series ADD COLUMN nth_week INTEGER;
+      ALTER TABLE recurring_series ADD COLUMN nth_weekday_dow INTEGER;
+    `);
+    console.log('Migrated recurring_series table: added monthly_mode / nth_week / nth_weekday_dow columns.');
+  }
+}
+migrateRecurringSeriesIfNeeded();
+
 // Safe now regardless of which path migration took above — the external_id
 // column is guaranteed to exist at this point.
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_day_entries_external ON day_entries(external_id) WHERE external_id IS NOT NULL;');

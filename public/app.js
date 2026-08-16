@@ -2,7 +2,7 @@
 let currentView = 'day';
 let currentDate = todayStr();
 let currentMonthDate = new Date();
-const TIMELINE_START_HOUR = 3;  // 3:00 AM
+const TIMELINE_START_HOUR = 5;  // 5:00 AM
 const TIMELINE_END_HOUR = 23;   // 11:00 PM
 const PX_PER_HOUR = 60;
 
@@ -230,7 +230,14 @@ function bindEntryModal() {
   repeatsSelect.addEventListener('change', () => {
     const val = repeatsSelect.value;
     intervalRow.classList.toggle('hidden', !val);
+    document.getElementById('repeatsUntilRow').classList.toggle('hidden', !val);
+    document.getElementById('monthlyPatternRow').classList.toggle('hidden', val !== 'monthly');
+    document.getElementById('nthWeekdayRow').classList.add('hidden'); // only shown once "nth_weekday" pattern is picked below
     if (val) intervalUnit.textContent = unitLabels[val];
+  });
+
+  document.getElementById('monthlyPatternMode').addEventListener('change', (e) => {
+    document.getElementById('nthWeekdayRow').classList.toggle('hidden', e.target.value !== 'nth_weekday');
   });
 }
 
@@ -267,6 +274,7 @@ function openEntryModal(entry) {
 
   document.getElementById('recurringNotice').classList.toggle('hidden', !isRecurring);
   document.getElementById('detachEntryBtn').onclick = () => detachEntry(entry?.id);
+  document.getElementById('deleteSeriesBtn').onclick = () => deleteEntireSeries(entry?.recurring_series_id);
 
   document.getElementById('entryModal').classList.remove('hidden');
 }
@@ -277,6 +285,14 @@ async function detachEntry(id) {
   const detached = await res.json();
   if (!res.ok) { alert(detached.error || 'Failed to detach'); return; }
   openEntryModal(detached); // reopen, now editable as a normal manual entry
+}
+
+async function deleteEntireSeries(seriesId) {
+  if (!seriesId) return;
+  if (!confirm('Delete this entire recurring series? This removes every past and future occurrence — not just this one.')) return;
+  await fetch(`/api/recurring-series/${seriesId}`, { method: 'DELETE' });
+  closeEntryModal();
+  apptRefreshAfterEntryChange();
 }
 
 function sourceLabel(source) {
@@ -303,8 +319,17 @@ async function saveEntry(e) {
       interval_count: parseInt(document.getElementById('entryRepeatsInterval').value) || 1,
       anchor_date: document.getElementById('entryDate').value,
       start_time: document.getElementById('entryStart').value || null,
-      end_time: document.getElementById('entryEnd').value || null
+      end_time: document.getElementById('entryEnd').value || null,
+      until_date: document.getElementById('entryRepeatsUntil').value || null
     };
+    if (repeats === 'monthly') {
+      const mode = document.getElementById('monthlyPatternMode').value;
+      payload.monthly_mode = mode;
+      if (mode === 'nth_weekday') {
+        payload.nth_week = parseInt(document.getElementById('nthWeekOrdinal').value);
+        payload.nth_weekday_dow = parseInt(document.getElementById('nthWeekdayDow').value);
+      }
+    }
     const res = await fetch('/api/recurring-series', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     });

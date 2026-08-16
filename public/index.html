@@ -116,10 +116,46 @@
             <span id="repeatsIntervalUnit" class="muted-text">week(s)</span>
           </div>
         </div>
+        <div class="form-group hidden" id="monthlyPatternRow">
+          <label for="monthlyPatternMode">Monthly pattern</label>
+          <select id="monthlyPatternMode">
+            <option value="day_of_month">Same day each month (e.g. the 15th)</option>
+            <option value="nth_weekday">Same weekday pattern (e.g. third Wednesday)</option>
+          </select>
+        </div>
+        <div class="form-row hidden" id="nthWeekdayRow">
+          <div class="form-group">
+            <label for="nthWeekOrdinal">Which</label>
+            <select id="nthWeekOrdinal">
+              <option value="1">First</option>
+              <option value="2">Second</option>
+              <option value="3">Third</option>
+              <option value="4">Fourth</option>
+              <option value="-1">Last</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="nthWeekdayDow">Weekday</label>
+            <select id="nthWeekdayDow">
+              <option value="0">Sunday</option>
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group hidden" id="repeatsUntilRow">
+          <label for="entryRepeatsUntil">Repeat until (optional)</label>
+          <input type="date" id="entryRepeatsUntil">
+        </div>
 
         <div id="recurringNotice" class="muted-text hidden" style="margin-bottom:0.75rem;">
           This is part of a recurring series.
           <button type="button" id="detachEntryBtn" class="secondary-btn" style="margin-top:0.4rem;">Edit just this occurrence</button>
+          <button type="button" id="deleteSeriesBtn" class="danger-btn" style="margin-top:0.4rem;">Delete entire series</button>
         </div>
 
         <div class="modal-actions">

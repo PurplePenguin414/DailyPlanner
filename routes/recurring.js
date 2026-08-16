@@ -10,16 +10,60 @@ function dateToStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Computes the date of the nth occurrence of a weekday within a given
+// month (nth: 1-5, or -1 for "last"). Returns null if that nth doesn't
+// exist in this particular month (e.g. a "5th Monday" in a month that
+// only has four) — the caller skips that month rather than guessing.
+function nthWeekdayOfMonth(year, monthIndex, targetDow, nth) {
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+  if (nth === -1) {
+    const lastDay = new Date(year, monthIndex, daysInMonth);
+    const lastDow = lastDay.getDay();
+    const offset = (lastDow - targetDow + 7) % 7;
+    return new Date(year, monthIndex, daysInMonth - offset);
+  }
+
+  const firstDay = new Date(year, monthIndex, 1);
+  const firstDow = firstDay.getDay();
+  const firstOccurrenceDay = 1 + ((targetDow - firstDow + 7) % 7);
+  const targetDay = firstOccurrenceDay + (nth - 1) * 7;
+  if (targetDay > daysInMonth) return null; // this nth doesn't exist this month
+  return new Date(year, monthIndex, targetDay);
+}
+
 // Computes the nth occurrence date for a recurrence pattern, with correct
 // month/year rollover clamping (e.g. a Jan 31 monthly anchor lands on Feb 28,
 // not March 3 — JS Date's naive setMonth() would do the wrong thing here).
-function nthOccurrence(anchorDateStr, recurrenceType, intervalCount, n) {
+function nthOccurrence(series, n) {
+  const { anchor_date: anchorDateStr, recurrence_type: recurrenceType, interval_count: intervalCount,
+          monthly_mode: monthlyMode, nth_week: nthWeek, nth_weekday_dow: nthWeekdayDow } = series;
   const anchor = new Date(anchorDateStr + 'T00:00:00');
 
   if (recurrenceType === 'weekly') {
     const d = new Date(anchor);
     d.setDate(d.getDate() + n * intervalCount * 7);
     return d;
+  }
+
+  if (recurrenceType === 'monthly' && monthlyMode === 'nth_weekday') {
+    // Walk forward month-by-month from the anchor's month, skipping any
+    // month where this nth-weekday doesn't exist (e.g. a rare "5th X"),
+    // until we've found (n+1) valid occurrences.
+    let monthIndex = anchor.getMonth();
+    let year = anchor.getFullYear();
+    let found = -1;
+    let steps = 0;
+    while (found < n) {
+      const candidate = nthWeekdayOfMonth(year, monthIndex, nthWeekdayDow, nthWeek);
+      if (candidate) found++;
+      if (found === n) return candidate;
+      monthIndex += intervalCount;
+      year += Math.floor(monthIndex / 12);
+      monthIndex = ((monthIndex % 12) + 12) % 12;
+      steps++;
+      if (steps > 500) throw new Error('nth-weekday search exceeded safety limit');
+    }
   }
 
   if (recurrenceType === 'monthly') {
@@ -52,6 +96,14 @@ function materializeSeries(series) {
   const windowEnd = new Date();
   windowEnd.setFullYear(windowEnd.getFullYear() + WINDOW_YEARS);
 
+  // If an "until" date is set, it caps generation even if it's sooner than
+  // the default window — otherwise the window (whichever is sooner) applies.
+  let effectiveEnd = windowEnd;
+  if (series.until_date) {
+    const untilDate = new Date(series.until_date + 'T23:59:59');
+    if (untilDate < effectiveEnd) effectiveEnd = untilDate;
+  }
+
   const upsert = db.prepare(`
     INSERT INTO day_entries (entry_date, start_time, end_time, title, notes, color, source, external_id, recurring_series_id)
     VALUES (?, ?, ?, ?, ?, ?, 'recurring', ?, ?)
@@ -72,8 +124,8 @@ function materializeSeries(series) {
   let n = 0;
   let generated = 0;
   while (true) {
-    const occurrence = nthOccurrence(series.anchor_date, series.recurrence_type, series.interval_count, n);
-    if (occurrence > windowEnd) break;
+    const occurrence = nthOccurrence(series, n);
+    if (occurrence > effectiveEnd) break;
     const dateStr = dateToStr(occurrence);
     if (!exceptions.has(dateStr)) {
       const externalId = `recurring-${series.id}-${dateStr}`;
@@ -93,18 +145,26 @@ router.get('/', (req, res) => {
 
 // POST /api/recurring-series
 router.post('/', (req, res) => {
-  const { title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time } = req.body;
+  const { title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time, until_date,
+          monthly_mode, nth_week, nth_weekday_dow } = req.body;
   if (!title || !recurrence_type || !anchor_date) {
     return res.status(400).json({ error: 'title, recurrence_type, and anchor_date are required' });
   }
   if (!['weekly', 'monthly', 'yearly'].includes(recurrence_type)) {
     return res.status(400).json({ error: 'recurrence_type must be weekly, monthly, or yearly' });
   }
+  if (monthly_mode === 'nth_weekday' && (nth_week === undefined || nth_weekday_dow === undefined)) {
+    return res.status(400).json({ error: 'nth_week and nth_weekday_dow are required when monthly_mode is nth_weekday' });
+  }
 
   const result = db.prepare(`
-    INSERT INTO recurring_series (title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(title, notes || null, color || '#8e44ad', recurrence_type, interval_count || 1, anchor_date, start_time || null, end_time || null);
+    INSERT INTO recurring_series (title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time, until_date, monthly_mode, nth_week, nth_weekday_dow)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    title, notes || null, color || '#8e44ad', recurrence_type, interval_count || 1, anchor_date,
+    start_time || null, end_time || null, until_date || null,
+    monthly_mode || 'day_of_month', nth_week ?? null, nth_weekday_dow ?? null
+  );
 
   const series = db.prepare('SELECT * FROM recurring_series WHERE id = ?').get(result.lastInsertRowid);
   const generated = materializeSeries(series);
@@ -118,14 +178,19 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM recurring_series WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  const { title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time } = req.body;
+  const { title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time, until_date,
+          monthly_mode, nth_week, nth_weekday_dow } = req.body;
   db.prepare(`
-    UPDATE recurring_series SET title=?, notes=?, color=?, recurrence_type=?, interval_count=?, anchor_date=?, start_time=?, end_time=?
+    UPDATE recurring_series SET title=?, notes=?, color=?, recurrence_type=?, interval_count=?, anchor_date=?, start_time=?, end_time=?, until_date=?, monthly_mode=?, nth_week=?, nth_weekday_dow=?
     WHERE id=?
   `).run(
     title ?? existing.title, notes ?? existing.notes, color ?? existing.color,
     recurrence_type ?? existing.recurrence_type, interval_count ?? existing.interval_count,
     anchor_date ?? existing.anchor_date, start_time ?? existing.start_time, end_time ?? existing.end_time,
+    until_date !== undefined ? until_date : existing.until_date,
+    monthly_mode ?? existing.monthly_mode,
+    nth_week !== undefined ? nth_week : existing.nth_week,
+    nth_weekday_dow !== undefined ? nth_weekday_dow : existing.nth_weekday_dow,
     req.params.id
   );
 

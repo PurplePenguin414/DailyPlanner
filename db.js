@@ -44,7 +44,12 @@ CREATE TABLE IF NOT EXISTS day_entries (
 
 CREATE INDEX IF NOT EXISTS idx_weekly_blocks_week ON weekly_blocks(week_start);
 CREATE INDEX IF NOT EXISTS idx_day_entries_date ON day_entries(entry_date);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_day_entries_external ON day_entries(external_id) WHERE external_id IS NOT NULL;
+-- NOTE: the unique index on external_id is intentionally NOT created here.
+-- If day_entries already existed from before this column was added (old
+-- schema used "google_event_id" instead), creating that index right now
+-- would fail since the live table doesn't have the column yet. It's created
+-- further down, after migrateDayEntriesIfNeeded() has guaranteed the column
+-- exists one way or another.
 
 -- Google Calendar OAuth tokens (single-user app, so just one row ever exists)
 CREATE TABLE IF NOT EXISTS google_calendar_auth (
@@ -104,6 +109,10 @@ function migrateDayEntriesIfNeeded() {
   `).run();
 }
 migrateDayEntriesIfNeeded();
+
+// Safe now regardless of which path migration took above — the external_id
+// column is guaranteed to exist at this point.
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_day_entries_external ON day_entries(external_id) WHERE external_id IS NOT NULL;');
 
 function ensureDefaultUser() {
   const row = db.prepare('SELECT COUNT(*) AS c FROM users').get();

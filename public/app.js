@@ -2,7 +2,7 @@
 let currentView = 'day';
 let currentDate = todayStr();
 let currentMonthDate = new Date();
-const TIMELINE_START_HOUR = 5;  // 5:00 AM
+const TIMELINE_START_HOUR = 3;  // 3:00 AM
 const TIMELINE_END_HOUR = 23;   // 11:00 PM
 const PX_PER_HOUR = 60;
 
@@ -654,8 +654,8 @@ async function saveTypeColors() {
   const btn = document.getElementById('saveColorsBtn');
   const original = btn.textContent;
   await fetch('/api/settings/colors', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  btn.textContent = 'Saved!';
-  setTimeout(() => { btn.textContent = original; }, 1500);
+  btn.textContent = 'Saved! Click Sync Now to repaint existing appointments.';
+  setTimeout(() => { btn.textContent = original; }, 3000);
 }
 
 async function loadRecurringSeriesList() {

@@ -64,8 +64,7 @@ body {
 /* ---- Top bar ---- */
 .topbar {
   display: flex; justify-content: space-between; align-items: center;
-  padding: calc(1.25rem + env(safe-area-inset-top, 24px)) 1.5rem 1rem;
-  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border);
 }
 .topbar h1 { font-size: 1.2rem; margin: 0; }
 .topbar-actions { display: flex; gap: 0.5rem; }
@@ -184,7 +183,7 @@ main { padding: 1.25rem 1.5rem 3rem; max-width: 800px; margin: 0 auto; }
   .form-row { flex-direction: column; gap: 0; }
   main { padding: 0.75rem; }
 
-  .topbar { padding: calc(1rem + env(safe-area-inset-top, 24px)) 1rem 0.75rem; }
+  .topbar { padding: 0.75rem 1rem; }
   .topbar h1 { font-size: 1.05rem; }
 
   .day-toolbar { gap: 0.5rem; }

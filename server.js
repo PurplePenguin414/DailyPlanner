@@ -68,9 +68,17 @@ app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'publi
 
 // ---- Weekly blocks ----
 app.get('/api/weekly-blocks', requireAuth, (req, res) => {
-  const { week_start } = req.query;
-  if (!week_start) return res.status(400).json({ error: 'week_start is required' });
-  res.json(db.prepare('SELECT * FROM weekly_blocks WHERE week_start = ? ORDER BY day_of_week, start_time').all(week_start));
+  const { week_start, start, end } = req.query;
+  if (week_start) {
+    return res.json(db.prepare('SELECT * FROM weekly_blocks WHERE week_start = ? ORDER BY day_of_week, start_time').all(week_start));
+  }
+  if (start && end) {
+    // Used by the month view: return every block whose week falls anywhere in
+    // the visible grid range, so recurring blocks show up there too, not just
+    // in the Day view.
+    return res.json(db.prepare('SELECT * FROM weekly_blocks WHERE week_start >= ? AND week_start <= ? ORDER BY week_start, day_of_week, start_time').all(start, end));
+  }
+  return res.status(400).json({ error: 'Provide either week_start, or start and end' });
 });
 
 app.post('/api/weekly-blocks', requireAuth, (req, res) => {

@@ -315,12 +315,29 @@ async function loadMonthView() {
 
   const startStr = dateToStr(gridStart);
   const endStr = dateToStr(gridEnd);
-  const res = await fetch(`/api/day-entries?start=${startStr}&end=${endStr}`);
-  const entries = await res.json();
+  const [entriesRes, blocksRes] = await Promise.all([
+    fetch(`/api/day-entries?start=${startStr}&end=${endStr}`),
+    fetch(`/api/weekly-blocks?start=${getWeekStart(startStr)}&end=${endStr}`)
+  ]);
+  const entries = await entriesRes.json();
+  const allBlocks = await blocksRes.json();
   const entriesByDate = {};
   entries.forEach(e => {
     if (!entriesByDate[e.entry_date]) entriesByDate[e.entry_date] = [];
     entriesByDate[e.entry_date].push(e);
+  });
+
+  // Expand each weekly block to its actual calendar date (same math used
+  // elsewhere: week_start is a Monday, day_of_week is 0=Sun..6=Sat) and merge
+  // it into the same per-day list the dots/titles render from.
+  allBlocks.forEach(b => {
+    const weekStartDate = new Date(b.week_start + 'T00:00:00');
+    const offset = b.day_of_week === 0 ? 6 : b.day_of_week - 1;
+    const blockDate = new Date(weekStartDate);
+    blockDate.setDate(blockDate.getDate() + offset);
+    const blockDateStr = dateToStr(blockDate);
+    if (!entriesByDate[blockDateStr]) entriesByDate[blockDateStr] = [];
+    entriesByDate[blockDateStr].push({ title: b.label, color: b.color });
   });
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

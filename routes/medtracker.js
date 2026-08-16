@@ -45,7 +45,7 @@ router.post('/sync', async (req, res) => {
     const upsert = db.prepare(`
       INSERT INTO day_entries (entry_date, start_time, end_time, title, notes, color, source, external_id)
       VALUES (?, ?, ?, ?, ?, ?, 'medtracker', ?)
-      ON CONFLICT(external_id) DO UPDATE SET
+      ON CONFLICT(external_id) WHERE external_id IS NOT NULL DO UPDATE SET
         entry_date = excluded.entry_date,
         start_time = excluded.start_time,
         end_time = excluded.end_time,

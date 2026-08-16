@@ -98,6 +98,30 @@
           <input type="color" id="entryColor" value="#2e7d32">
         </div>
 
+        <div class="form-group" id="repeatsGroup">
+          <label for="entryRepeats">Repeats</label>
+          <select id="entryRepeats">
+            <option value="">Does not repeat</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly (e.g. birthdays)</option>
+          </select>
+        </div>
+        <div class="form-row hidden" id="repeatsIntervalRow">
+          <div class="form-group">
+            <label for="entryRepeatsInterval">Every</label>
+            <input type="number" id="entryRepeatsInterval" min="1" value="1">
+          </div>
+          <div class="form-group" id="repeatsIntervalUnitWrap" style="align-self:flex-end; padding-bottom:0.6rem;">
+            <span id="repeatsIntervalUnit" class="muted-text">week(s)</span>
+          </div>
+        </div>
+
+        <div id="recurringNotice" class="muted-text hidden" style="margin-bottom:0.75rem;">
+          This is part of a recurring series.
+          <button type="button" id="detachEntryBtn" class="secondary-btn" style="margin-top:0.4rem;">Edit just this occurrence</button>
+        </div>
+
         <div class="modal-actions">
           <button type="button" id="deleteEntryBtn" class="danger-btn hidden">Delete</button>
           <button type="submit" class="primary-btn">Save Entry</button>
@@ -173,6 +197,33 @@
       <p id="medtrackerStatus" class="muted-text">Checking connection…</p>
       <button id="medtrackerSyncBtn" class="secondary-btn hidden">Sync Now</button>
 
+      <h3>Appointment Type Colors</h3>
+      <p class="muted-text">Applied whenever appointments sync in from Med &amp; Appointment Tracker.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="colorTherapy">Therapy / EMDR</label>
+          <input type="color" id="colorTherapy">
+        </div>
+        <div class="form-group">
+          <label for="colorDietitian">Dietitian</label>
+          <input type="color" id="colorDietitian">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="colorDoctor">Doctor</label>
+          <input type="color" id="colorDoctor">
+        </div>
+        <div class="form-group">
+          <label for="colorOther">Other</label>
+          <input type="color" id="colorOther">
+        </div>
+      </div>
+      <button id="saveColorsBtn" class="secondary-btn">Save Colors</button>
+
+      <h3>Recurring Events</h3>
+      <div id="recurringSeriesList" class="muted-text">Loading…</div>
+
       <h3>Apple / Google Calendar Subscription</h3>
       <p class="muted-text">Subscribe to this URL in Apple Calendar or Google Calendar to see everything here — updates automatically, refreshes roughly every hour.</p>
       <p id="icalStatus" class="muted-text">Checking…</p>
@@ -235,6 +286,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

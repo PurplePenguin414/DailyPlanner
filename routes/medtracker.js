@@ -8,12 +8,27 @@ const TYPE_LABELS = {
   doctor: 'Doctor',
   other: 'Other'
 };
-const TYPE_COLORS = {
+const DEFAULT_TYPE_COLORS = {
   therapy: '#2e7d32',
   dietitian: '#e0a324',
   doctor: '#4a6fa5',
   other: '#8e44ad'
 };
+
+function getTypeColors() {
+  const rows = db.prepare("SELECT key, value FROM app_settings WHERE key LIKE 'color_%'").all();
+  const colors = { ...DEFAULT_TYPE_COLORS };
+  rows.forEach(r => { colors[r.key.replace('color_', '')] = r.value; });
+  return colors;
+}
+
+function addMinutes(timeStr, minutes) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  const newH = Math.floor(total / 60) % 24;
+  const newM = total % 60;
+  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+}
 
 // GET /api/medtracker/status
 router.get('/status', (req, res) => {
@@ -55,18 +70,20 @@ router.post('/sync', async (req, res) => {
     `);
 
     let synced = 0;
+    const colors = getTypeColors();
     appointments.forEach(appt => {
       const label = TYPE_LABELS[appt.type] || appt.type;
       const title = `${label}${appt.provider_name ? ' — ' + appt.provider_name : ''}`;
       const notes = appt.location || null;
       const externalId = `medtracker-${appt.id}`;
+      const endTime = appt.appointment_time ? addMinutes(appt.appointment_time, 60) : null;
       upsert.run(
         appt.appointment_date,
         appt.appointment_time || null,
-        null, // Med & Appointment Tracker doesn't track an end time for appointments
+        endTime,
         title,
         notes,
-        TYPE_COLORS[appt.type] || '#8e44ad',
+        colors[appt.type] || DEFAULT_TYPE_COLORS.other,
         externalId
       );
       synced++;

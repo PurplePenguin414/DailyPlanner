@@ -45,7 +45,7 @@ function foldLine(line) {
 function buildTimedEvent({ uid, dtstamp, startDate, startTime, endTime, summary, description }) {
   const datePart = startDate.replace(/-/g, '');
   const dtstart = `${datePart}T${(startTime || '00:00').replace(':', '')}00`;
-  const endTimeVal = endTime || addMinutes(startTime || '00:00', 30);
+  const endTimeVal = endTime || addMinutes(startTime || '00:00', 60);
   const dtend = `${datePart}T${endTimeVal.replace(':', '')}00`;
 
   return [

@@ -1,0 +1,152 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../db');
+
+// How far forward to materialize instances. Generous but cheap — even 3
+// years of weekly occurrences is only ~150 rows.
+const WINDOW_YEARS = 3;
+
+function dateToStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Computes the nth occurrence date for a recurrence pattern, with correct
+// month/year rollover clamping (e.g. a Jan 31 monthly anchor lands on Feb 28,
+// not March 3 — JS Date's naive setMonth() would do the wrong thing here).
+function nthOccurrence(anchorDateStr, recurrenceType, intervalCount, n) {
+  const anchor = new Date(anchorDateStr + 'T00:00:00');
+
+  if (recurrenceType === 'weekly') {
+    const d = new Date(anchor);
+    d.setDate(d.getDate() + n * intervalCount * 7);
+    return d;
+  }
+
+  if (recurrenceType === 'monthly') {
+    const anchorDay = anchor.getDate();
+    const targetMonthIndex = anchor.getMonth() + n * intervalCount;
+    const targetYear = anchor.getFullYear() + Math.floor(targetMonthIndex / 12);
+    const targetMonth = ((targetMonthIndex % 12) + 12) % 12;
+    const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const clampedDay = Math.min(anchorDay, daysInTargetMonth);
+    return new Date(targetYear, targetMonth, clampedDay);
+  }
+
+  if (recurrenceType === 'yearly') {
+    const targetYear = anchor.getFullYear() + n * intervalCount;
+    const anchorMonth = anchor.getMonth();
+    const anchorDay = anchor.getDate();
+    const daysInTargetMonth = new Date(targetYear, anchorMonth + 1, 0).getDate();
+    const clampedDay = Math.min(anchorDay, daysInTargetMonth); // handles Feb 29 anchor on non-leap years
+    return new Date(targetYear, anchorMonth, clampedDay);
+  }
+
+  throw new Error(`Unknown recurrence_type: ${recurrenceType}`);
+}
+
+// Materializes (inserts/updates) day_entries for a series from today's n=0
+// forward through WINDOW_YEARS. Idempotent — safe to call repeatedly; uses
+// the same ON CONFLICT(external_id) pattern as the other sync sources so
+// re-running this never duplicates rows.
+function materializeSeries(series) {
+  const windowEnd = new Date();
+  windowEnd.setFullYear(windowEnd.getFullYear() + WINDOW_YEARS);
+
+  const upsert = db.prepare(`
+    INSERT INTO day_entries (entry_date, start_time, end_time, title, notes, color, source, external_id, recurring_series_id)
+    VALUES (?, ?, ?, ?, ?, ?, 'recurring', ?, ?)
+    ON CONFLICT(external_id) WHERE external_id IS NOT NULL DO UPDATE SET
+      entry_date = excluded.entry_date,
+      start_time = excluded.start_time,
+      end_time = excluded.end_time,
+      title = excluded.title,
+      notes = excluded.notes,
+      color = excluded.color,
+      updated_at = datetime('now')
+  `);
+
+  const exceptions = new Set(
+    db.prepare('SELECT exception_date FROM recurring_exceptions WHERE series_id = ?').all(series.id).map(r => r.exception_date)
+  );
+
+  let n = 0;
+  let generated = 0;
+  while (true) {
+    const occurrence = nthOccurrence(series.anchor_date, series.recurrence_type, series.interval_count, n);
+    if (occurrence > windowEnd) break;
+    const dateStr = dateToStr(occurrence);
+    if (!exceptions.has(dateStr)) {
+      const externalId = `recurring-${series.id}-${dateStr}`;
+      upsert.run(dateStr, series.start_time, series.end_time, series.title, series.notes, series.color, externalId, series.id);
+      generated++;
+    }
+    n++;
+    if (n > 2000) break; // safety valve against a runaway loop
+  }
+  return generated;
+}
+
+// GET /api/recurring-series
+router.get('/', (req, res) => {
+  res.json(db.prepare('SELECT * FROM recurring_series WHERE active = 1 ORDER BY title').all());
+});
+
+// POST /api/recurring-series
+router.post('/', (req, res) => {
+  const { title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time } = req.body;
+  if (!title || !recurrence_type || !anchor_date) {
+    return res.status(400).json({ error: 'title, recurrence_type, and anchor_date are required' });
+  }
+  if (!['weekly', 'monthly', 'yearly'].includes(recurrence_type)) {
+    return res.status(400).json({ error: 'recurrence_type must be weekly, monthly, or yearly' });
+  }
+
+  const result = db.prepare(`
+    INSERT INTO recurring_series (title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(title, notes || null, color || '#8e44ad', recurrence_type, interval_count || 1, anchor_date, start_time || null, end_time || null);
+
+  const series = db.prepare('SELECT * FROM recurring_series WHERE id = ?').get(result.lastInsertRowid);
+  const generated = materializeSeries(series);
+  res.status(201).json({ series, generated });
+});
+
+// PUT /api/recurring-series/:id — edits the series and regenerates future
+// instances. Past instances (before today) are left untouched, so history
+// stays accurate even if you change a series' time or title going forward.
+router.put('/:id', (req, res) => {
+  const existing = db.prepare('SELECT * FROM recurring_series WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const { title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time } = req.body;
+  db.prepare(`
+    UPDATE recurring_series SET title=?, notes=?, color=?, recurrence_type=?, interval_count=?, anchor_date=?, start_time=?, end_time=?
+    WHERE id=?
+  `).run(
+    title ?? existing.title, notes ?? existing.notes, color ?? existing.color,
+    recurrence_type ?? existing.recurrence_type, interval_count ?? existing.interval_count,
+    anchor_date ?? existing.anchor_date, start_time ?? existing.start_time, end_time ?? existing.end_time,
+    req.params.id
+  );
+
+  // Remove only future, still-attached (not detached-to-manual) instances,
+  // then regenerate — detached instances and past history are untouched.
+  const today = dateToStr(new Date());
+  db.prepare(`DELETE FROM day_entries WHERE recurring_series_id = ? AND source = 'recurring' AND entry_date >= ?`).run(req.params.id, today);
+
+  const series = db.prepare('SELECT * FROM recurring_series WHERE id = ?').get(req.params.id);
+  const generated = materializeSeries(series);
+  res.json({ series, generated });
+});
+
+// DELETE /api/recurring-series/:id — removes the series and every instance
+// it generated, past and future.
+router.delete('/:id', (req, res) => {
+  const result = db.prepare('DELETE FROM recurring_series WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  db.prepare(`DELETE FROM day_entries WHERE recurring_series_id = ?`).run(req.params.id);
+  db.prepare(`DELETE FROM recurring_exceptions WHERE series_id = ?`).run(req.params.id);
+  res.json({ success: true });
+});
+
+module.exports = router;

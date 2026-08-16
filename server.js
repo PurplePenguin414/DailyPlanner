@@ -186,7 +186,15 @@ app.put('/api/day-entries/:id', requireAuth, (req, res) => {
 app.delete('/api/day-entries/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM day_entries WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.source !== 'manual') return res.status(400).json({ error: `Entries synced from ${existing.source} are read-only here — delete them at the source instead` });
+  if (existing.source === 'google' || existing.source === 'medtracker') {
+    return res.status(400).json({ error: `Entries synced from ${existing.source} are read-only here — delete them at the source instead` });
+  }
+  // Deleting a single recurring instance also needs an exception recorded —
+  // same reasoning as detach: otherwise a later series edit regenerates it.
+  if (existing.source === 'recurring') {
+    db.prepare('INSERT OR IGNORE INTO recurring_exceptions (series_id, exception_date) VALUES (?, ?)')
+      .run(existing.recurring_series_id, existing.entry_date);
+  }
   db.prepare('DELETE FROM day_entries WHERE id = ?').run(req.params.id);
   res.json({ success: true });
 });
@@ -196,6 +204,49 @@ app.use('/api/google', requireAuth, require('./routes/google-calendar'));
 
 // ---- Med & Appointment Tracker sync ----
 app.use('/api/medtracker', requireAuth, require('./routes/medtracker'));
+
+// ---- Recurring events (birthdays, monthly meetings, etc.) ----
+app.use('/api/recurring-series', requireAuth, require('./routes/recurring'));
+
+// ---- Appointment-type color preferences (used by Med & Appointment
+// Tracker sync so appointments of the same type always land the same color) ----
+app.get('/api/settings/colors', requireAuth, (req, res) => {
+  const rows = db.prepare("SELECT key, value FROM app_settings WHERE key LIKE 'color_%'").all();
+  const colors = {};
+  rows.forEach(r => { colors[r.key.replace('color_', '')] = r.value; });
+  res.json(colors);
+});
+
+app.put('/api/settings/colors', requireAuth, (req, res) => {
+  const upsert = db.prepare(`
+    INSERT INTO app_settings (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `);
+  Object.entries(req.body).forEach(([type, color]) => {
+    if (['therapy', 'dietitian', 'doctor', 'other'].includes(type)) {
+      upsert.run(`color_${type}`, color);
+    }
+  });
+  res.json({ success: true });
+});
+
+// Detach a single recurring instance into a standalone manual entry, so it
+// can be edited/deleted without affecting the rest of the series and won't
+// get wiped out if the series is later edited and regenerated.
+app.post('/api/day-entries/:id/detach', requireAuth, (req, res) => {
+  const existing = db.prepare('SELECT * FROM day_entries WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  if (existing.source !== 'recurring') return res.status(400).json({ error: 'Only recurring entries can be detached' });
+
+  // Register this date as an exception FIRST, before nulling the series
+  // link — otherwise a later series edit would regenerate a duplicate
+  // right next to the now-detached entry.
+  db.prepare('INSERT OR IGNORE INTO recurring_exceptions (series_id, exception_date) VALUES (?, ?)')
+    .run(existing.recurring_series_id, existing.entry_date);
+
+  db.prepare(`UPDATE day_entries SET source = 'manual', external_id = NULL, recurring_series_id = NULL, updated_at = datetime('now') WHERE id = ?`).run(req.params.id);
+  res.json(db.prepare('SELECT * FROM day_entries WHERE id = ?').get(req.params.id));
+});
 
 // ---- iCal feed (NOT behind requireAuth — calendar apps poll this directly
 // with no login flow; it's protected by its own dedicated key instead) ----

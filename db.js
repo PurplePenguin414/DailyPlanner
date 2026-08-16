@@ -62,6 +62,40 @@ CREATE TABLE IF NOT EXISTS google_calendar_auth (
   last_synced_at TEXT
 );
 
+-- Recurring events (birthdays, monthly meetings, etc.) — distinct from
+-- weekly_blocks above, which are set manually per-week. These repeat
+-- indefinitely on a pattern and get materialized forward automatically.
+CREATE TABLE IF NOT EXISTS recurring_series (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  notes TEXT,
+  color TEXT DEFAULT '#8e44ad',
+  recurrence_type TEXT NOT NULL CHECK(recurrence_type IN ('weekly','monthly','yearly')),
+  interval_count INTEGER NOT NULL DEFAULT 1,
+  anchor_date TEXT NOT NULL,      -- the first occurrence; month/day or weekday derived from this
+  start_time TEXT,                -- HH:MM, nullable for untimed (e.g. birthdays)
+  end_time TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Simple key/value settings store — currently used for per-appointment-type
+-- color preferences, applied whenever Med & Appointment Tracker syncs in.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+-- Tracks dates a recurring series should NOT generate an instance for —
+-- populated when a single occurrence is detached or deleted individually,
+-- so editing the series later doesn't regenerate a duplicate right next to it.
+CREATE TABLE IF NOT EXISTS recurring_exceptions (
+  series_id INTEGER NOT NULL,
+  exception_date TEXT NOT NULL,
+  PRIMARY KEY (series_id, exception_date),
+  FOREIGN KEY (series_id) REFERENCES recurring_series(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS schema_meta (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -73,12 +107,19 @@ CREATE TABLE IF NOT EXISTS schema_meta (
 // day_entries with the new CHECK/column while preserving all existing rows. ----
 function migrateDayEntriesIfNeeded() {
   const version = db.prepare("SELECT value FROM schema_meta WHERE key = 'day_entries_version'").get();
-  if (version && version.value === '2') return; // already migrated
+  if (version && version.value === '3') return; // already migrated
 
   const cols = db.prepare("PRAGMA table_info(day_entries)").all().map(c => c.name);
   const hasOldColumn = cols.includes('google_event_id');
 
-  if (hasOldColumn) {
+  // Check whether the CHECK constraint already allows 'recurring' — if this
+  // is a fresh v2 install (external_id already present) but predates the
+  // 'recurring' source type, it still needs rebuilding even though
+  // hasOldColumn is false.
+  const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='day_entries'").get();
+  const needsRecurringSource = tableSql && !tableSql.sql.includes("'recurring'");
+
+  if (hasOldColumn || needsRecurringSource) {
     db.exec(`
       CREATE TABLE day_entries_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,23 +129,36 @@ function migrateDayEntriesIfNeeded() {
         title TEXT NOT NULL,
         notes TEXT,
         color TEXT DEFAULT '#2e7d32',
-        source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','google','medtracker')),
+        source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','google','medtracker','recurring')),
         external_id TEXT,
+        recurring_series_id INTEGER,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       );
-      INSERT INTO day_entries_new (id, entry_date, start_time, end_time, title, notes, color, source, external_id, created_at, updated_at)
-        SELECT id, entry_date, start_time, end_time, title, notes, color, source, google_event_id, created_at, updated_at FROM day_entries;
+    `);
+
+    if (hasOldColumn) {
+      db.exec(`
+        INSERT INTO day_entries_new (id, entry_date, start_time, end_time, title, notes, color, source, external_id, created_at, updated_at)
+          SELECT id, entry_date, start_time, end_time, title, notes, color, source, google_event_id, created_at, updated_at FROM day_entries;
+      `);
+    } else {
+      db.exec(`
+        INSERT INTO day_entries_new (id, entry_date, start_time, end_time, title, notes, color, source, external_id, created_at, updated_at)
+          SELECT id, entry_date, start_time, end_time, title, notes, color, source, external_id, created_at, updated_at FROM day_entries;
+      `);
+    }
+
+    db.exec(`
       DROP TABLE day_entries;
       ALTER TABLE day_entries_new RENAME TO day_entries;
       CREATE INDEX IF NOT EXISTS idx_day_entries_date ON day_entries(entry_date);
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_day_entries_external ON day_entries(external_id) WHERE external_id IS NOT NULL;
     `);
-    console.log('Migrated day_entries table: google_event_id -> external_id, added medtracker source.');
+    console.log('Migrated day_entries table: added recurring source + recurring_series_id column.');
   }
 
   db.prepare(`
-    INSERT INTO schema_meta (key, value) VALUES ('day_entries_version', '2')
+    INSERT INTO schema_meta (key, value) VALUES ('day_entries_version', '3')
     ON CONFLICT(key) DO UPDATE SET value = excluded.value
   `).run();
 }

@@ -162,7 +162,7 @@ function renderTimelineEntries(blocks, entries) {
   const renderBlockEl = (item, isBlock) => {
     if (!item.start_time) { untimed.push(item); return; }
     const startMin = Math.max(0, timeToMinutesFromStart(item.start_time));
-    const endMin = item.end_time ? timeToMinutesFromStart(item.end_time) : startMin + 30;
+    const endMin = item.end_time ? timeToMinutesFromStart(item.end_time) : startMin + 60;
     const top = (startMin / 60) * PX_PER_HOUR;
     const height = Math.max(20, ((endMin - startMin) / 60) * PX_PER_HOUR);
 
@@ -222,12 +222,24 @@ function bindEntryModal() {
   document.getElementById('entryModal').addEventListener('click', (e) => { if (e.target.id === 'entryModal') closeEntryModal(); });
   document.getElementById('entryForm').addEventListener('submit', saveEntry);
   document.getElementById('deleteEntryBtn').addEventListener('click', deleteEntry);
+
+  const repeatsSelect = document.getElementById('entryRepeats');
+  const intervalRow = document.getElementById('repeatsIntervalRow');
+  const intervalUnit = document.getElementById('repeatsIntervalUnit');
+  const unitLabels = { weekly: 'week(s)', monthly: 'month(s)', yearly: 'year(s)' };
+  repeatsSelect.addEventListener('change', () => {
+    const val = repeatsSelect.value;
+    intervalRow.classList.toggle('hidden', !val);
+    if (val) intervalUnit.textContent = unitLabels[val];
+  });
 }
 
 function openEntryModal(entry) {
   const form = document.getElementById('entryForm');
   form.reset();
-  const isReadOnly = entry && entry.source !== 'manual';
+  const isFullyReadOnly = entry && (entry.source === 'google' || entry.source === 'medtracker');
+  const isRecurring = entry && entry.source === 'recurring';
+  const isReadOnly = isFullyReadOnly || isRecurring;
 
   document.getElementById('entryId').value = entry ? entry.id : '';
   document.getElementById('entryDate').value = entry ? entry.entry_date : currentDate;
@@ -238,14 +250,33 @@ function openEntryModal(entry) {
   document.getElementById('entryColor').value = entry ? (entry.color || '#2e7d32') : '#2e7d32';
 
   document.getElementById('entryModalTitle').textContent = entry ? (isReadOnly ? sourceLabel(entry.source) : 'Edit Entry') : 'New Entry';
-  document.getElementById('deleteEntryBtn').classList.toggle('hidden', !entry || isReadOnly);
+  document.getElementById('deleteEntryBtn').classList.toggle('hidden', !entry || isFullyReadOnly);
 
   const saveBtn = form.querySelector('.primary-btn');
-  const inputs = form.querySelectorAll('input, textarea');
+  const inputs = form.querySelectorAll('input, textarea, select');
   inputs.forEach(i => i.disabled = isReadOnly);
   saveBtn.classList.toggle('hidden', isReadOnly);
 
+  // "Repeats" only makes sense when creating a brand-new entry — converting
+  // an existing single entry into a series isn't supported, keeps this simple.
+  const repeatsGroup = document.getElementById('repeatsGroup');
+  const repeatsIntervalRow = document.getElementById('repeatsIntervalRow');
+  repeatsGroup.classList.toggle('hidden', !!entry);
+  if (entry) repeatsIntervalRow.classList.add('hidden');
+  document.getElementById('entryRepeats').value = '';
+
+  document.getElementById('recurringNotice').classList.toggle('hidden', !isRecurring);
+  document.getElementById('detachEntryBtn').onclick = () => detachEntry(entry?.id);
+
   document.getElementById('entryModal').classList.remove('hidden');
+}
+
+async function detachEntry(id) {
+  if (!id) return;
+  const res = await fetch(`/api/day-entries/${id}/detach`, { method: 'POST' });
+  const detached = await res.json();
+  if (!res.ok) { alert(detached.error || 'Failed to detach'); return; }
+  openEntryModal(detached); // reopen, now editable as a normal manual entry
 }
 
 function sourceLabel(source) {
@@ -261,6 +292,29 @@ function closeEntryModal() {
 async function saveEntry(e) {
   e.preventDefault();
   const id = document.getElementById('entryId').value;
+  const repeats = id ? '' : document.getElementById('entryRepeats').value;
+
+  if (repeats) {
+    const payload = {
+      title: document.getElementById('entryTitle').value,
+      notes: document.getElementById('entryNotes').value,
+      color: document.getElementById('entryColor').value,
+      recurrence_type: repeats,
+      interval_count: parseInt(document.getElementById('entryRepeatsInterval').value) || 1,
+      anchor_date: document.getElementById('entryDate').value,
+      start_time: document.getElementById('entryStart').value || null,
+      end_time: document.getElementById('entryEnd').value || null
+    };
+    const res = await fetch('/api/recurring-series', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Failed to create recurring event'); return; }
+    closeEntryModal();
+    apptRefreshAfterEntryChange();
+    return;
+  }
+
   const payload = {
     entry_date: document.getElementById('entryDate').value,
     title: document.getElementById('entryTitle').value,
@@ -276,7 +330,12 @@ async function saveEntry(e) {
     await fetch('/api/day-entries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   }
   closeEntryModal();
+  apptRefreshAfterEntryChange();
+}
+
+function apptRefreshAfterEntryChange() {
   loadDayView();
+  if (currentView === 'month') loadMonthView();
 }
 
 async function deleteEntry() {
@@ -285,7 +344,7 @@ async function deleteEntry() {
   if (!confirm('Delete this entry?')) return;
   await fetch(`/api/day-entries/${id}`, { method: 'DELETE' });
   closeEntryModal();
-  loadDayView();
+  apptRefreshAfterEntryChange();
 }
 
 // ================================================================
@@ -531,6 +590,7 @@ function bindSettingsModal() {
   document.getElementById('gcalDisconnectBtn').addEventListener('click', disconnectGoogleCalendar);
   document.getElementById('medtrackerSyncBtn').addEventListener('click', syncMedTracker);
   document.getElementById('icalCopyBtn').addEventListener('click', copyIcalUrl);
+  document.getElementById('saveColorsBtn').addEventListener('click', saveTypeColors);
 
   document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -569,6 +629,61 @@ async function openSettingsModal() {
   await refreshGoogleStatus();
   await refreshMedTrackerStatus();
   await refreshIcalUrl();
+  await loadTypeColors();
+  await loadRecurringSeriesList();
+}
+
+const DEFAULT_TYPE_COLORS = { therapy: '#2e7d32', dietitian: '#e0a324', doctor: '#4a6fa5', other: '#8e44ad' };
+
+async function loadTypeColors() {
+  const res = await fetch('/api/settings/colors');
+  const colors = await res.json();
+  document.getElementById('colorTherapy').value = colors.therapy || DEFAULT_TYPE_COLORS.therapy;
+  document.getElementById('colorDietitian').value = colors.dietitian || DEFAULT_TYPE_COLORS.dietitian;
+  document.getElementById('colorDoctor').value = colors.doctor || DEFAULT_TYPE_COLORS.doctor;
+  document.getElementById('colorOther').value = colors.other || DEFAULT_TYPE_COLORS.other;
+}
+
+async function saveTypeColors() {
+  const payload = {
+    therapy: document.getElementById('colorTherapy').value,
+    dietitian: document.getElementById('colorDietitian').value,
+    doctor: document.getElementById('colorDoctor').value,
+    other: document.getElementById('colorOther').value
+  };
+  const btn = document.getElementById('saveColorsBtn');
+  const original = btn.textContent;
+  await fetch('/api/settings/colors', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  btn.textContent = 'Saved!';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+}
+
+async function loadRecurringSeriesList() {
+  const res = await fetch('/api/recurring-series');
+  const series = await res.json();
+  const container = document.getElementById('recurringSeriesList');
+
+  if (!series.length) {
+    container.textContent = 'No recurring events set up yet.';
+    return;
+  }
+
+  const recurrenceLabels = { weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
+  container.innerHTML = series.map(s => `
+    <div class="week-block-item" style="background:${s.color}" data-id="${s.id}">
+      <span>${escapeHtml(s.title)} — ${recurrenceLabels[s.recurrence_type]}${s.interval_count > 1 ? ' (every ' + s.interval_count + ')' : ''}</span>
+      <button class="week-block-remove" data-id="${s.id}">&times;</button>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.week-block-remove').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this entire recurring series? This removes all past and future occurrences.')) return;
+      await fetch(`/api/recurring-series/${btn.dataset.id}`, { method: 'DELETE' });
+      loadRecurringSeriesList();
+      apptRefreshAfterEntryChange();
+    });
+  });
 }
 
 async function refreshIcalUrl() {

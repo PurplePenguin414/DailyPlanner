@@ -66,6 +66,38 @@ app.post('/api/change-password', requireAuth, (req, res) => {
 
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
+// ---- Widget API (read-only, key-protected, no session — for the iOS
+// Scriptable widget, same pattern as Med & Appointment Tracker's) ----
+app.get('/api/widget/today', (req, res) => {
+  const WIDGET_API_KEY = process.env.WIDGET_API_KEY || '';
+  if (!WIDGET_API_KEY) return res.status(503).json({ error: 'WIDGET_API_KEY not configured on this server' });
+  const providedKey = req.query.key || req.headers['x-api-key'];
+  if (providedKey !== WIDGET_API_KEY) return res.status(401).json({ error: 'Invalid or missing API key' });
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const dayOfWeek = today.getDay();
+
+  // Same Monday-based week_start convention used everywhere else in this app
+  const weekStartDate = new Date(today);
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  weekStartDate.setDate(weekStartDate.getDate() + diff);
+  const weekStart = `${weekStartDate.getFullYear()}-${String(weekStartDate.getMonth() + 1).padStart(2, '0')}-${String(weekStartDate.getDate()).padStart(2, '0')}`;
+
+  const blocks = db.prepare('SELECT label AS title, start_time, end_time, color FROM weekly_blocks WHERE week_start = ? AND day_of_week = ?').all(weekStart, dayOfWeek);
+  const entries = db.prepare('SELECT title, start_time, end_time, color FROM day_entries WHERE entry_date = ?').all(todayStr);
+
+  const items = [...blocks, ...entries];
+  items.sort((a, b) => {
+    if (!a.start_time && !b.start_time) return 0;
+    if (!a.start_time) return 1;   // untimed items sort to the end
+    if (!b.start_time) return -1;
+    return a.start_time.localeCompare(b.start_time);
+  });
+
+  res.json({ date: todayStr, items });
+});
+
 // ---- Weekly blocks ----
 app.get('/api/weekly-blocks', requireAuth, (req, res) => {
   const { week_start, start, end } = req.query;

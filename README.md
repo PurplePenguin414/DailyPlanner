@@ -37,6 +37,14 @@ Once deployed, go to Settings (⚙️) in the app and click **Connect Google Cal
    ```
 3. Open the app, log in with `DEFAULT_USERNAME`/`DEFAULT_PASSWORD`, then go to Settings and change your password.
 
+## iPhone home screen widget
+
+An iOS Scriptable widget is included (`ios-widget/DailyPlannerWidget.js`) — one script that works as either a **small** or **medium** home screen widget, showing today's schedule (weekly blocks + one-off entries, merged and sorted by time). Requires the free Scriptable app; setup instructions are in the comments at the top of the file. You'll need a `WIDGET_API_KEY` set in `.env` — generate one the same way as the other keys.
+
+## Mobile
+
+The web app is responsive — on narrow screens, the month view drops event title text and shows colored dots only (to fit the smaller grid cells), and modals/forms stack to full width.
+
 ## Notes
 
 - **Weekly blocks** are per-week, not a permanent template — click "Edit This Week's Blocks" from the Day view, or use "Copy Last Week's Blocks" to carry forward a typical week instead of re-entering it.

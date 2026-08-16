@@ -66,6 +66,7 @@ router.post('/sync', async (req, res) => {
         end_time = excluded.end_time,
         title = excluded.title,
         notes = excluded.notes,
+        color = excluded.color,
         updated_at = datetime('now')
     `);
 

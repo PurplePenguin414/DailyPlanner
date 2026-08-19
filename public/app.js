@@ -226,7 +226,7 @@ function bindEntryModal() {
   const repeatsSelect = document.getElementById('entryRepeats');
   const intervalRow = document.getElementById('repeatsIntervalRow');
   const intervalUnit = document.getElementById('repeatsIntervalUnit');
-  const unitLabels = { weekly: 'week(s)', monthly: 'month(s)', yearly: 'year(s)' };
+  const unitLabels = { daily: 'day(s)', weekly: 'week(s)', monthly: 'month(s)', yearly: 'year(s)' };
   repeatsSelect.addEventListener('change', () => {
     const val = repeatsSelect.value;
     intervalRow.classList.toggle('hidden', !val);

@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS recurring_series (
   title TEXT NOT NULL,
   notes TEXT,
   color TEXT DEFAULT '#8e44ad',
-  recurrence_type TEXT NOT NULL CHECK(recurrence_type IN ('weekly','monthly','yearly')),
+  recurrence_type TEXT NOT NULL CHECK(recurrence_type IN ('daily','weekly','monthly','yearly')),
   interval_count INTEGER NOT NULL DEFAULT 1,
   anchor_date TEXT NOT NULL,      -- the first occurrence; month/day or weekday derived from this
   start_time TEXT,                -- HH:MM, nullable for untimed (e.g. birthdays)
@@ -181,6 +181,36 @@ function migrateRecurringSeriesIfNeeded() {
       ALTER TABLE recurring_series ADD COLUMN nth_weekday_dow INTEGER;
     `);
     console.log('Migrated recurring_series table: added monthly_mode / nth_week / nth_weekday_dow columns.');
+  }
+
+  // The CHECK constraint on recurrence_type can't be ALTERed in SQLite —
+  // needs a full rebuild, same as the day_entries cases. Preserves explicit
+  // ids since day_entries.recurring_series_id references them.
+  const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='recurring_series'").get();
+  if (tableSql && !tableSql.sql.includes("'daily'")) {
+    db.exec(`
+      CREATE TABLE recurring_series_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        notes TEXT,
+        color TEXT DEFAULT '#8e44ad',
+        recurrence_type TEXT NOT NULL CHECK(recurrence_type IN ('daily','weekly','monthly','yearly')),
+        interval_count INTEGER NOT NULL DEFAULT 1,
+        anchor_date TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now')),
+        until_date TEXT,
+        monthly_mode TEXT DEFAULT 'day_of_month',
+        nth_week INTEGER,
+        nth_weekday_dow INTEGER
+      );
+      INSERT INTO recurring_series_new SELECT id, title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time, active, created_at, until_date, monthly_mode, nth_week, nth_weekday_dow FROM recurring_series;
+      DROP TABLE recurring_series;
+      ALTER TABLE recurring_series_new RENAME TO recurring_series;
+    `);
+    console.log('Migrated recurring_series table: added daily to recurrence_type options.');
   }
 }
 migrateRecurringSeriesIfNeeded();

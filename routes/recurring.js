@@ -40,6 +40,12 @@ function nthOccurrence(series, n) {
           monthly_mode: monthlyMode, nth_week: nthWeek, nth_weekday_dow: nthWeekdayDow } = series;
   const anchor = new Date(anchorDateStr + 'T00:00:00');
 
+  if (recurrenceType === 'daily') {
+    const d = new Date(anchor);
+    d.setDate(d.getDate() + n * intervalCount);
+    return d;
+  }
+
   if (recurrenceType === 'weekly') {
     const d = new Date(anchor);
     d.setDate(d.getDate() + n * intervalCount * 7);
@@ -150,8 +156,8 @@ router.post('/', (req, res) => {
   if (!title || !recurrence_type || !anchor_date) {
     return res.status(400).json({ error: 'title, recurrence_type, and anchor_date are required' });
   }
-  if (!['weekly', 'monthly', 'yearly'].includes(recurrence_type)) {
-    return res.status(400).json({ error: 'recurrence_type must be weekly, monthly, or yearly' });
+  if (!['daily', 'weekly', 'monthly', 'yearly'].includes(recurrence_type)) {
+    return res.status(400).json({ error: 'recurrence_type must be daily, weekly, monthly, or yearly' });
   }
   if (monthly_mode === 'nth_weekday' && (nth_week === undefined || nth_weekday_dow === undefined)) {
     return res.status(400).json({ error: 'nth_week and nth_weekday_dow are required when monthly_mode is nth_weekday' });

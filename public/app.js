@@ -232,12 +232,20 @@ function bindEntryModal() {
     intervalRow.classList.toggle('hidden', !val);
     document.getElementById('repeatsUntilRow').classList.toggle('hidden', !val);
     document.getElementById('monthlyPatternRow').classList.toggle('hidden', val !== 'monthly');
-    document.getElementById('nthWeekdayRow').classList.add('hidden'); // only shown once "nth_weekday" pattern is picked below
+    document.getElementById('yearlyPatternRow').classList.toggle('hidden', val !== 'yearly');
+    document.getElementById('yearlyMonthRow').classList.add('hidden'); // only shown once nth_weekday yearly pattern is picked
+    document.getElementById('nthWeekdayRow').classList.add('hidden'); // only shown once a nth_weekday pattern is picked below
     if (val) intervalUnit.textContent = unitLabels[val];
   });
 
   document.getElementById('monthlyPatternMode').addEventListener('change', (e) => {
     document.getElementById('nthWeekdayRow').classList.toggle('hidden', e.target.value !== 'nth_weekday');
+  });
+
+  document.getElementById('yearlyPatternMode').addEventListener('change', (e) => {
+    const isNthWeekday = e.target.value === 'nth_weekday';
+    document.getElementById('nthWeekdayRow').classList.toggle('hidden', !isNthWeekday);
+    document.getElementById('yearlyMonthRow').classList.toggle('hidden', !isNthWeekday);
   });
 }
 
@@ -328,6 +336,15 @@ async function saveEntry(e) {
       if (mode === 'nth_weekday') {
         payload.nth_week = parseInt(document.getElementById('nthWeekOrdinal').value);
         payload.nth_weekday_dow = parseInt(document.getElementById('nthWeekdayDow').value);
+      }
+    }
+    if (repeats === 'yearly') {
+      const mode = document.getElementById('yearlyPatternMode').value;
+      payload.yearly_mode = mode;
+      if (mode === 'nth_weekday') {
+        payload.nth_week = parseInt(document.getElementById('nthWeekOrdinal').value);
+        payload.nth_weekday_dow = parseInt(document.getElementById('nthWeekdayDow').value);
+        payload.yearly_month = parseInt(document.getElementById('yearlyMonthSelect').value);
       }
     }
     const res = await fetch('/api/recurring-series', {

@@ -182,6 +182,13 @@ function migrateRecurringSeriesIfNeeded() {
     `);
     console.log('Migrated recurring_series table: added monthly_mode / nth_week / nth_weekday_dow columns.');
   }
+  if (!cols.includes('yearly_mode')) {
+    db.exec(`
+      ALTER TABLE recurring_series ADD COLUMN yearly_mode TEXT DEFAULT 'month_day';
+      ALTER TABLE recurring_series ADD COLUMN yearly_month INTEGER;
+    `);
+    console.log('Migrated recurring_series table: added yearly_mode / yearly_month columns.');
+  }
 
   // The CHECK constraint on recurrence_type can't be ALTERed in SQLite —
   // needs a full rebuild, same as the day_entries cases. Preserves explicit
@@ -204,9 +211,11 @@ function migrateRecurringSeriesIfNeeded() {
         until_date TEXT,
         monthly_mode TEXT DEFAULT 'day_of_month',
         nth_week INTEGER,
-        nth_weekday_dow INTEGER
+        nth_weekday_dow INTEGER,
+        yearly_mode TEXT DEFAULT 'month_day',
+        yearly_month INTEGER
       );
-      INSERT INTO recurring_series_new SELECT id, title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time, active, created_at, until_date, monthly_mode, nth_week, nth_weekday_dow FROM recurring_series;
+      INSERT INTO recurring_series_new SELECT id, title, notes, color, recurrence_type, interval_count, anchor_date, start_time, end_time, active, created_at, until_date, monthly_mode, nth_week, nth_weekday_dow, yearly_mode, yearly_month FROM recurring_series;
       DROP TABLE recurring_series;
       ALTER TABLE recurring_series_new RENAME TO recurring_series;
     `);

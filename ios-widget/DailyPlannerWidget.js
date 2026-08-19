@@ -48,7 +48,7 @@ async function createWidget(data, size) {
   const isSmall = size === "small";
   const isLarge = size === "large";
   const w = new ListWidget();
-  w.backgroundColor = new Color("#000000");
+  w.backgroundColor = new Color("#121212"); // matches the app's dark mode background
   w.url = APP_URL;
   w.setPadding(14, 14, 14, 14);
 
@@ -61,7 +61,7 @@ async function createWidget(data, size) {
 
   const title = w.addText(isSmall ? "📅 Today" : "📅 Today's Schedule");
   title.font = Font.boldSystemFont(isSmall ? 13 : 15);
-  title.textColor = new Color("#ffffff");
+  title.textColor = new Color("#5b8fd6"); // matches the app's new blue accent
 
   const dateLabel = w.addText(formatDateHeader());
   dateLabel.font = Font.systemFont(10);

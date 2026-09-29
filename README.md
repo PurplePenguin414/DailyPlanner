@@ -51,8 +51,22 @@ it on mobile. Click a task's checkbox to mark it done (it moves to a
 collapsed "Done" section, last 20 shown); click the task text itself to
 open notes/edit/delete.
 
-This is the prerequisite for Dashboard's planned "Due Today" tab, which
-will read from this same data once built.
+This is the prerequisite for Dashboard's "Due Today" tab, which reads and
+writes this same data via a key-protected external API:
+
+```
+GET    /api/external/tasks             list open + done tasks
+POST   /api/external/tasks             create a task ({ title, notes })
+PUT    /api/external/tasks/:id         update title/notes
+PUT    /api/external/tasks/:id/done    toggle done
+DELETE /api/external/tasks/:id         delete
+```
+
+Send the key as either `?key=...` or an `X-API-Key` header. Set
+`DASHBOARD_API_KEY` in `.env` (generate with `openssl rand -hex 32`) — it
+must match `DAILY_PLANNER_API_KEY` in Dashboard's own `.env`. No session
+or login involved; this is app-to-app on the same server, same pattern as
+the Med Tracker sync above.
 
 ## Mobile
 

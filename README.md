@@ -41,9 +41,22 @@ Once deployed, go to Settings (⚙️) in the app and click **Connect Google Cal
 
 An iOS Scriptable widget is included (`ios-widget/DailyPlannerWidget.js`) — one script that works as either a **small** or **medium** home screen widget, showing today's schedule (weekly blocks + one-off entries, merged and sorted by time). Requires the free Scriptable app; setup instructions are in the comments at the top of the file. You'll need a `WIDGET_API_KEY` set in `.env` — generate one the same way as the other keys.
 
+## Tasks panel
+
+A simple checklist — title, optional notes, done/not-done. No due date, no
+priority. Deliberately minimal, same reasoning as Dashboard's Brain Dump
+tab: it's not tied to any specific date, so it doesn't fit as a Day-view
+entry — it's its own panel, next to the timeline on desktop, stacked below
+it on mobile. Click a task's checkbox to mark it done (it moves to a
+collapsed "Done" section, last 20 shown); click the task text itself to
+open notes/edit/delete.
+
+This is the prerequisite for Dashboard's planned "Due Today" tab, which
+will read from this same data once built.
+
 ## Mobile
 
-The web app is responsive — on narrow screens, the month view drops event title text and shows colored dots only (to fit the smaller grid cells), and modals/forms stack to full width.
+The web app is responsive — on narrow screens, the month view drops event title text and shows colored dots only (to fit the smaller grid cells), and modals/forms stack to full width. The Tasks panel moves below the full timeline rather than beside it, which means a fair scroll to reach it on a phone (the timeline runs 5am–11pm) — worth revisiting if that turns out to be annoying in daily use.
 
 ## Notes
 

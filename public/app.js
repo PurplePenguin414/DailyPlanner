@@ -18,8 +18,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindBlockEditModal();
   bindWeekModal();
   bindSettingsModal();
+  bindTaskAddForm();
+  bindTaskModal();
   renderTimelineSkeleton();
   loadDayView();
+  loadTasks();
   checkGoogleCalendarReturn();
 });
 
@@ -870,4 +873,113 @@ function checkGoogleCalendarReturn() {
     history.replaceState({}, '', '/');
     alert('Google Calendar connection failed. Please try again.');
   }
+}
+
+// ---- Tasks (simple checklist panel on the Day view: title, notes,
+// done/not-done — no due date, no priority) ----
+function bindTaskAddForm() {
+  document.getElementById('taskAddForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('taskAddInput');
+    const title = input.value.trim();
+    if (!title) return;
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    });
+    input.value = '';
+    loadTasks();
+  });
+}
+
+async function loadTasks() {
+  const res = await fetch('/api/tasks');
+  if (!res.ok) return;
+  const { open, done } = await res.json();
+  renderTaskList('tasksOpenList', open, false);
+
+  const doneSection = document.getElementById('tasksDoneSection');
+  if (done.length) {
+    doneSection.classList.remove('hidden');
+    renderTaskList('tasksDoneList', done.slice(0, 20), true);
+  } else {
+    doneSection.classList.add('hidden');
+  }
+
+  if (!open.length) {
+    document.getElementById('tasksOpenList').innerHTML = '<div class="tasks-empty">Nothing on the list.</div>';
+  }
+}
+
+function renderTaskList(containerId, tasks, isDone) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  tasks.forEach((task) => {
+    const row = document.createElement('div');
+    row.className = 'task-row' + (isDone ? ' done' : '');
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = isDone;
+    checkbox.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTaskDone(task.id, !isDone);
+    });
+
+    const title = document.createElement('div');
+    title.className = 'task-row-title';
+    title.textContent = task.title;
+
+    row.appendChild(checkbox);
+    row.appendChild(title);
+    row.addEventListener('click', () => openTaskModal(task));
+    container.appendChild(row);
+  });
+}
+
+async function toggleTaskDone(id, done) {
+  await fetch(`/api/tasks/${id}/done`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ done })
+  });
+  loadTasks();
+}
+
+function bindTaskModal() {
+  document.getElementById('closeTaskModalBtn').addEventListener('click', closeTaskModal);
+  document.getElementById('taskModal').addEventListener('click', (e) => { if (e.target.id === 'taskModal') closeTaskModal(); });
+  document.getElementById('taskForm').addEventListener('submit', saveTask);
+  document.getElementById('deleteTaskBtn').addEventListener('click', deleteTask);
+}
+
+function openTaskModal(task) {
+  document.getElementById('taskId').value = task.id;
+  document.getElementById('taskTitle').value = task.title;
+  document.getElementById('taskNotes').value = task.notes || '';
+  document.getElementById('taskModal').classList.remove('hidden');
+}
+
+function closeTaskModal() {
+  document.getElementById('taskModal').classList.add('hidden');
+}
+
+async function saveTask(e) {
+  e.preventDefault();
+  const id = document.getElementById('taskId').value;
+  const payload = {
+    title: document.getElementById('taskTitle').value,
+    notes: document.getElementById('taskNotes').value
+  };
+  await fetch(`/api/tasks/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  closeTaskModal();
+  loadTasks();
+}
+
+async function deleteTask() {
+  const id = document.getElementById('taskId').value;
+  await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+  closeTaskModal();
+  loadTasks();
 }

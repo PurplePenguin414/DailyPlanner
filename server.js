@@ -248,6 +248,45 @@ app.post('/api/day-entries/:id/detach', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM day_entries WHERE id = ?').get(req.params.id));
 });
 
+// ---- Tasks (simple checklist: title, notes, done — no due date, no
+// priority) — not-done first (oldest first), then done (most recent first) ----
+app.get('/api/tasks', requireAuth, (req, res) => {
+  const open = db.prepare("SELECT * FROM tasks WHERE done = 0 ORDER BY created_at ASC").all();
+  const done = db.prepare("SELECT * FROM tasks WHERE done = 1 ORDER BY updated_at DESC").all();
+  res.json({ open, done });
+});
+
+app.post('/api/tasks', requireAuth, (req, res) => {
+  const { title, notes } = req.body;
+  if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required' });
+  const result = db.prepare('INSERT INTO tasks (title, notes) VALUES (?, ?)')
+    .run(title.trim(), notes || null);
+  res.status(201).json(db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid));
+});
+
+app.put('/api/tasks/:id', requireAuth, (req, res) => {
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  const { title, notes } = req.body;
+  db.prepare(`UPDATE tasks SET title=?, notes=?, updated_at=datetime('now') WHERE id=?`)
+    .run(title ?? existing.title, notes ?? existing.notes, req.params.id);
+  res.json(db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id));
+});
+
+app.put('/api/tasks/:id/done', requireAuth, (req, res) => {
+  const existing = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  const done = req.body.done ? 1 : 0;
+  db.prepare(`UPDATE tasks SET done=?, updated_at=datetime('now') WHERE id=?`).run(done, req.params.id);
+  res.json(db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id));
+});
+
+app.delete('/api/tasks/:id', requireAuth, (req, res) => {
+  const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true });
+});
+
 // ---- iCal feed (NOT behind requireAuth — calendar apps poll this directly
 // with no login flow; it's protected by its own dedicated key instead) ----
 app.use('/api/ical', require('./routes/ical'));

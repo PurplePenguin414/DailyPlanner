@@ -100,6 +100,19 @@ CREATE TABLE IF NOT EXISTS schema_meta (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+-- Simple checklist tasks: title + optional notes + done/not-done. No due
+-- date, no priority — deliberately kept minimal (see Dashboard's Brain
+-- Dump tab for the same "small evergreen tool" reasoning). Lives in its
+-- own panel on the Day view rather than tied to any specific date.
+CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  notes TEXT,
+  done INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
 `);
 
 // ---- Migration: original schema used source CHECK('manual','google') and a

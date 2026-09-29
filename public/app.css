@@ -112,6 +112,38 @@ main { padding: 1.25rem 1.5rem 3rem; max-width: 800px; margin: 0 auto; }
 .day-label { font-weight: 600; font-size: 1.05rem; min-width: 220px; text-align: center; }
 .day-actions { display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
 
+/* ---- Day content: timeline + tasks side panel ---- */
+.day-content { display: flex; gap: 1rem; align-items: flex-start; }
+.day-content .timeline-wrap { flex: 1; min-width: 0; }
+
+.tasks-panel {
+  width: 260px; flex-shrink: 0; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 0.9rem;
+}
+.tasks-panel-title { margin: 0 0 0.6rem; font-size: 0.95rem; }
+.task-add-form { display: flex; gap: 0.4rem; margin-bottom: 0.75rem; }
+.task-add-form input {
+  flex: 1; min-width: 0; padding: 0.45rem 0.5rem; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg); color: var(--text); font-size: 0.85rem;
+}
+.task-add-form button { padding: 0.45rem 0.7rem; font-size: 0.8rem; }
+
+.task-row {
+  display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.task-row:last-child { border-bottom: none; }
+.task-row input[type="checkbox"] { margin-top: 0.2rem; flex-shrink: 0; cursor: pointer; }
+.task-row-title { flex: 1; font-size: 0.85rem; word-break: break-word; }
+.task-row.done .task-row-title { color: var(--text-muted); text-decoration: line-through; }
+.tasks-empty { color: var(--text-muted); font-size: 0.82rem; padding: 0.4rem 0; }
+.tasks-done-label { margin: 0.6rem 0 0.3rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+
+@media (max-width: 900px) {
+  .day-content { flex-direction: column; }
+  .tasks-panel { width: 100%; }
+}
+
 .timeline-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .timeline { position: relative; }
 .timeline-hour {

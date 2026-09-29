@@ -52,7 +52,21 @@ collapsed "Done" section, last 20 shown); click the task text itself to
 open notes/edit/delete.
 
 This is the prerequisite for Dashboard's "Due Today" tab, which reads and
-writes this same data via a key-protected external API:
+writes this same data via a key-protected external API.
+
+**Deploying this update:** besides `git pull` and rebuilding, this round
+also adds Daily Planner to the shared `apps-net` Docker network so
+Dashboard can reach it by container name — make sure the network exists
+first (harmless if it already does):
+```bash
+docker network create apps-net
+docker compose up -d --build
+```
+Also add `DASHBOARD_API_KEY` to `.env` if you haven't yet (generate with
+`openssl rand -hex 32`) — it must match `DAILY_PLANNER_API_KEY` set in
+Dashboard's own `.env`.
+
+API reference:
 
 ```
 GET    /api/external/tasks             list open + done tasks

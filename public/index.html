@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Daily Planner</title>
-<link rel="stylesheet" href="app.css?v=11">
+<link rel="stylesheet" href="app.css?v=13">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1">
 <link rel="shortcut icon" href="favicon.ico?v=1">
@@ -30,6 +30,7 @@
   <nav class="view-tabs">
     <button class="view-tab-btn active" data-view="day">Day</button>
     <button class="view-tab-btn" data-view="month">Month</button>
+    <button class="view-tab-btn" data-view="jobs">Jobs</button>
   </nav>
 
   <main id="mainContent">
@@ -64,6 +65,24 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- JOBS VIEW -->
+    <div id="jobsView" class="view-panel hidden">
+      <div class="jobs-toolbar">
+        <input type="search" id="jobsSearch" placeholder="Search company, role, notes" autocomplete="off">
+        <button id="jobsAddBtn" class="primary-btn">+ Add job</button>
+        <button id="callsAddBtn" class="secondary-btn hidden">+ Log call</button>
+      </div>
+      <div class="jobs-filters" id="jobsFilters">
+        <button type="button" class="jobs-filter active" data-filter="open">Open</button>
+        <button type="button" class="jobs-filter" data-filter="due">Needs follow-up</button>
+        <button type="button" class="jobs-filter" data-filter="closed">Closed</button>
+        <button type="button" class="jobs-filter" data-filter="all">All</button>
+        <button type="button" class="jobs-filter" data-filter="calls">Calls</button>
+      </div>
+      <div id="jobsError" class="error-text hidden"></div>
+      <div id="jobsList"></div>
     </div>
 
     <!-- MONTH VIEW -->
@@ -385,6 +404,85 @@
     </div>
   </div>
 
+  <div id="jobModal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="jobModalClose" type="button">&times;</button>
+      <h2 id="jobModalTitle">Add job</h2>
+      <form id="jobForm">
+        <div class="form-group"><label for="jobCompany">Company</label><input id="jobCompany" required maxlength="200"></div>
+        <div class="form-group"><label for="jobRole">Role</label><input id="jobRole" maxlength="200"></div>
+        <div class="form-row">
+          <div class="form-group"><label for="jobStatus">Status</label>
+            <select id="jobStatus">
+              <option value="saved">Saved</option><option value="applied">Applied</option>
+              <option value="interviewing">Interviewing</option><option value="waiting">Waiting</option>
+              <option value="offer">Offer</option><option value="rejected">Rejected</option>
+              <option value="withdrawn">Withdrawn</option>
+            </select></div>
+          <div class="form-group"><label for="jobAppliedDate">Applied on</label><input type="date" id="jobAppliedDate"></div>
+        </div>
+        <div class="form-group"><label for="jobUrl">Posting link</label><input id="jobUrl" type="url" placeholder="https://" maxlength="2000"></div>
+        <div class="form-row">
+          <div class="form-group"><label for="jobPay">Pay range</label><input id="jobPay" maxlength="100"></div>
+          <div class="form-group"><label for="jobSource">Found on</label><input id="jobSource" maxlength="100"></div>
+        </div>
+        <div class="form-group"><label for="jobApplyBy">Apply by (for saved jobs)</label><input type="date" id="jobApplyBy"></div>
+        <div class="form-group">
+          <label for="jobFollowUp">Follow up on</label>
+          <input type="date" id="jobFollowUp">
+          <div class="jobs-chips">
+            <button type="button" class="jobs-chip" data-days="3">+3 days</button>
+            <button type="button" class="jobs-chip" data-days="7">+1 week</button>
+            <button type="button" class="jobs-chip" data-days="14">+2 weeks</button>
+            <button type="button" class="jobs-chip" data-days="clear">Clear</button>
+          </div>
+          <label class="jobs-check"><input type="checkbox" id="jobPing"> Ping me on Discord that morning</label>
+        </div>
+        <div class="form-group"><label for="jobCompanyNotes">Company notes</label><textarea id="jobCompanyNotes" rows="3" maxlength="5000"></textarea></div>
+        <div class="form-group"><label for="jobNotes">Notes</label><textarea id="jobNotes" rows="3" maxlength="5000"></textarea></div>
+        <div class="form-group"><label for="jobOutcome">Why it ended</label><textarea id="jobOutcome" rows="2" maxlength="5000"></textarea></div>
+        <div id="jobCalls"></div>
+        <div id="jobFormError" class="error-text hidden"></div>
+        <div class="modal-actions">
+          <button type="button" id="jobDeleteBtn" class="danger-btn hidden">Delete</button>
+          <button type="submit" class="primary-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="callModal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="callModalClose" type="button">&times;</button>
+      <h2 id="callModalTitle">Log call</h2>
+      <form id="callForm">
+        <div class="form-group"><label for="callContact">Who you talked to</label><input id="callContact" required maxlength="200"></div>
+        <div class="form-row">
+          <div class="form-group"><label for="callCompany">Company</label><input id="callCompany" maxlength="200"></div>
+          <div class="form-group"><label for="callDate">Call date</label><input type="date" id="callDate"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label for="callPhone">Phone</label><input id="callPhone" maxlength="50"></div>
+          <div class="form-group"><label for="callEmail">Email</label><input id="callEmail" maxlength="200"></div>
+        </div>
+        <div class="form-group"><label for="callJob">Related job (optional)</label><select id="callJob"><option value="">None</option></select></div>
+        <div class="form-group"><label for="callSummary">What was said</label><textarea id="callSummary" rows="4" maxlength="5000"></textarea></div>
+        <div class="form-group"><label for="callNext">Next step</label><input id="callNext" maxlength="500"></div>
+        <div class="form-group">
+          <label for="callNextDate">Next step date</label><input type="date" id="callNextDate">
+          <label class="jobs-check"><input type="checkbox" id="callPing"> Ping me on Discord that morning</label>
+          <label class="jobs-check"><input type="checkbox" id="callDone"> Next step done</label>
+        </div>
+        <div id="callFormError" class="error-text hidden"></div>
+        <div class="modal-actions">
+          <button type="button" id="callDeleteBtn" class="danger-btn hidden">Delete</button>
+          <button type="submit" class="primary-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="app.js?v=8"></script>
+  <script src="jobs.js?v=2"></script>
 </body>
 </html>

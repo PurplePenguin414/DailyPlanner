@@ -127,6 +127,28 @@ router.get('/feed.ics', (req, res) => {
     events.push(buildTimedEvent({ uid, dtstamp, startDate: blockDateStr, startTime: b.start_time, endTime: b.end_time, summary: b.label }));
   });
 
+  // Job follow-ups and apply-by dates (read straight from the jobs table)
+  try {
+    const { FOLLOW_UP_STATUSES } = require('../lib/jobs-core');
+    const marks = FOLLOW_UP_STATUSES.map(() => '?').join(',');
+    const label = j => (j.role ? `${j.company} (${j.role})` : j.company);
+    db.prepare(`SELECT * FROM jobs WHERE next_follow_up >= ? AND next_follow_up <= ? AND status IN (${marks})`)
+      .all(startStr, endStr, ...FOLLOW_UP_STATUSES).forEach(j => {
+        events.push(buildAllDayEvent({ uid: `job-${j.id}-followup@daily.megangibbs.net`, dtstamp, startDate: j.next_follow_up,
+          summary: `Follow up: ${label(j)}`, description: j.url || '' }));
+      });
+    db.prepare(`SELECT * FROM jobs WHERE apply_by >= ? AND apply_by <= ? AND status = 'saved'`)
+      .all(startStr, endStr).forEach(j => {
+        events.push(buildAllDayEvent({ uid: `job-${j.id}-applyby@daily.megangibbs.net`, dtstamp, startDate: j.apply_by,
+          summary: `Apply by: ${label(j)}`, description: j.url || '' }));
+      });
+    db.prepare('SELECT * FROM job_calls WHERE next_step_date >= ? AND next_step_date <= ? AND next_step_done = 0')
+      .all(startStr, endStr).forEach(c => {
+        events.push(buildAllDayEvent({ uid: `jobcall-${c.id}-next@daily.megangibbs.net`, dtstamp, startDate: c.next_step_date,
+          summary: `Next step: ${c.contact_name}${c.next_step ? ' — ' + c.next_step : ''}`, description: [c.phone, c.email].filter(Boolean).join(' · ') }));
+      });
+  } catch (e) { console.error('iCal job events failed:', e.message); }
+
   const calendar = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',

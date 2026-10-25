@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { google } = require('googleapis');
 const db = require('./db');
+const jobsRouter = require('./routes/jobs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -87,7 +88,9 @@ app.get('/api/widget/today', (req, res) => {
   const blocks = db.prepare('SELECT label AS title, start_time, end_time, color FROM weekly_blocks WHERE week_start = ? AND day_of_week = ?').all(weekStart, dayOfWeek);
   const entries = db.prepare('SELECT title, start_time, end_time, color FROM day_entries WHERE entry_date = ?').all(todayStr);
 
-  const items = [...blocks, ...entries];
+  let jobItems = [];
+  try { jobItems = jobsRouter.todayItems(todayStr); } catch (e) { console.error('Job widget items failed:', e.message); }
+  const items = [...blocks, ...entries, ...jobItems];
   items.sort((a, b) => {
     if (!a.start_time && !b.start_time) return 0;
     if (!a.start_time) return 1;   // untimed items sort to the end
@@ -294,6 +297,10 @@ app.delete('/api/tasks/:id', requireAuth, (req, res) => {
 // ---- External tasks API (key-protected, no session — for Dashboard's Due
 // Today tab, same pattern as Med & Appointment Tracker's external API) ----
 app.use('/api/external/tasks', require('./routes/external-tasks'));
+
+// ---- Job Search tab (router carries its own 401 guard; see routes/jobs.js) ----
+app.use('/api/jobs', jobsRouter);
+require('./lib/job-pings').startJobPings();
 
 // ---- iCal feed (NOT behind requireAuth — calendar apps poll this directly
 // with no login flow; it's protected by its own dedicated key instead) ----

@@ -245,3 +245,53 @@ main { padding: 1.25rem 1.5rem 3rem; max-width: 800px; margin: 0 auto; }
   .modal-content { padding: 1.25rem; max-width: 100%; }
   .modal { padding: 1rem 0.5rem; }
 }
+
+/* ---- Job Search tab ---- */
+.jobs-toolbar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.jobs-toolbar input[type="search"] {
+  flex: 1; min-width: 0; padding: 0.55rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text); font-size: 0.9rem; font-family: inherit;
+}
+.jobs-filters { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.jobs-filter {
+  background: var(--tab-inactive); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.35rem 0.8rem; font-size: 0.8rem; cursor: pointer;
+}
+.jobs-filter.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.jobs-empty { padding: 1.5rem 0; text-align: center; }
+.job-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.75rem 0.9rem; margin-bottom: 0.6rem; box-shadow: var(--shadow); cursor: pointer;
+}
+.job-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+.job-card-main { min-width: 0; }
+.job-company { font-weight: 600; word-break: break-word; }
+.job-role { font-size: 0.85rem; word-break: break-word; }
+.job-card-meta { display: flex; flex-wrap: wrap; gap: 0.35rem 0.8rem; margin-top: 0.45rem; font-size: 0.78rem; }
+.job-status {
+  font-size: 0.7rem; text-transform: capitalize; padding: 0.2rem 0.55rem; border-radius: 999px;
+  background: var(--tab-inactive); border: 1px solid var(--border); flex-shrink: 0;
+}
+.job-status-applied, .job-status-interviewing { border-color: var(--accent); color: var(--accent); }
+.job-status-offer { border-color: var(--success); color: var(--success); }
+.job-status-rejected, .job-status-withdrawn { color: var(--text-muted); }
+.jobs-follow { color: var(--accent); font-weight: 600; }
+.jobs-follow.today { color: var(--success); }
+.jobs-follow.overdue { color: var(--danger); }
+.jobs-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.jobs-chip {
+  background: var(--tab-inactive); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.3rem 0.7rem; font-size: 0.78rem; cursor: pointer;
+}
+.form-group label.jobs-check { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.7rem; color: var(--text); }
+.form-group label.jobs-check input { width: auto; }
+@media (max-width: 600px) {
+  .jobs-toolbar { flex-wrap: wrap; }
+  .jobs-toolbar .primary-btn { width: 100%; }
+  .job-card, .jobs-filter, .jobs-chip { min-height: 40px; }
+}
+
+.call-summary { font-size: 0.82rem; margin-top: 0.35rem; word-break: break-word; }
+.jobs-related-title { font-size: 0.8rem; color: var(--text-muted); margin: 0.25rem 0; }
+.jobs-related { font-size: 0.82rem; padding: 0.15rem 0; }
+#jobCalls { margin-bottom: 0.5rem; }

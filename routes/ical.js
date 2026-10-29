@@ -142,6 +142,16 @@ router.get('/feed.ics', (req, res) => {
         events.push(buildAllDayEvent({ uid: `job-${j.id}-applyby@daily.megangibbs.net`, dtstamp, startDate: j.apply_by,
           summary: `Apply by: ${label(j)}`, description: j.url || '' }));
       });
+    // The call itself, when it is today or later (a scheduled call). Past logged calls stay out of the calendar.
+    const todayLocal = require('../lib/jobs-core').todayStr();
+    db.prepare('SELECT * FROM job_calls WHERE call_date >= ? AND call_date <= ?')
+      .all(todayLocal > startStr ? todayLocal : startStr, endStr).forEach(c => {
+        const summary = `Call: ${c.contact_name}${c.company ? ' (' + c.company + ')' : ''}`;
+        const description = [c.phone, c.email, c.summary].filter(Boolean).join(' · ');
+        const uid = `jobcall-${c.id}-call@daily.megangibbs.net`;
+        if (c.call_time) events.push(buildTimedEvent({ uid, dtstamp, startDate: c.call_date, startTime: c.call_time, endTime: null, summary, description }));
+        else events.push(buildAllDayEvent({ uid, dtstamp, startDate: c.call_date, summary, description }));
+      });
     db.prepare('SELECT * FROM job_calls WHERE next_step_date >= ? AND next_step_date <= ? AND next_step_done = 0')
       .all(startStr, endStr).forEach(c => {
         events.push(buildAllDayEvent({ uid: `jobcall-${c.id}-next@daily.megangibbs.net`, dtstamp, startDate: c.next_step_date,

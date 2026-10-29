@@ -125,7 +125,10 @@ router.todayItems = function (today) {
   ).all(today).map(c => ({
     title: `Call next step: ${c.contact_name}${c.next_step ? ' — ' + c.next_step : ''}`, start_time: null, end_time: null, color: null
   }));
-  return [...follow, ...apply, ...steps];
+  const todays = db.prepare('SELECT contact_name, company, call_time FROM job_calls WHERE call_date = ?').all(today).map(c => ({
+    title: `Call: ${c.contact_name}${c.company ? ' (' + c.company + ')' : ''}`, start_time: c.call_time || null, end_time: null, color: null
+  }));
+  return [...follow, ...apply, ...steps, ...todays];
 };
 
 module.exports = router;

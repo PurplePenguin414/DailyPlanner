@@ -178,7 +178,7 @@
       return '<option value="' + j.id + '">' + esc(j.company + (j.role ? ' — ' + j.role : '')) + '</option>'; }).join('');
     var x = c || { call_date: today };
     $('callContact').value = x.contact_name || ''; $('callCompany').value = x.company || '';
-    $('callDate').value = x.call_date || today; $('callPhone').value = x.phone || ''; $('callEmail').value = x.email || '';
+    $('callDate').value = x.call_date || today; $('callTime').value = x.call_time || ''; $('callPhone').value = x.phone || ''; $('callEmail').value = x.email || '';
     sel.value = x.job_id ? String(x.job_id) : '';
     $('callSummary').value = x.summary || ''; $('callNext').value = x.next_step || '';
     $('callNextDate').value = x.next_step_date || ''; $('callPing').checked = !!x.next_step_ping; $('callDone').checked = !!x.next_step_done;
@@ -190,7 +190,7 @@
   function saveCall(ev) {
     ev.preventDefault();
     var body = {
-      contact_name: $('callContact').value, company: $('callCompany').value, call_date: $('callDate').value || null,
+      contact_name: $('callContact').value, company: $('callCompany').value, call_date: $('callDate').value || null, call_time: $('callTime').value || null,
       phone: $('callPhone').value, email: $('callEmail').value, job_id: $('callJob').value || null,
       summary: $('callSummary').value, next_step: $('callNext').value, next_step_date: $('callNextDate').value || null,
       next_step_ping: $('callPing').checked, next_step_done: $('callDone').checked

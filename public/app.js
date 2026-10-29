@@ -903,6 +903,7 @@ async function loadTasks() {
   if (done.length) {
     doneSection.classList.remove('hidden');
     renderTaskList('tasksDoneList', done.slice(0, 20), true);
+    document.getElementById('tasksDoneSummary').textContent = 'Done (' + done.length + ')';
   } else {
     doneSection.classList.add('hidden');
   }

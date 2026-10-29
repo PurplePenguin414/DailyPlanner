@@ -116,18 +116,29 @@ function formatHourLabel(h) {
   return `${h12} ${ampm}`;
 }
 
+// Job follow-ups / calls for the Day and Month screens. Never lets a jobs
+// problem break the planner: any failure just means no job items.
+async function fetchJobItems(start, end) {
+  try {
+    const res = await fetch(`/api/jobs/calendar?start=${start}&end=${end}`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) { return []; }
+}
+
 async function loadDayView() {
   document.getElementById('dayLabel').textContent = formatDayLabel(currentDate);
 
   const weekStart = getWeekStart(currentDate);
   const dayOfWeek = new Date(currentDate + 'T00:00:00').getDay();
 
-  const [blocksRes, entriesRes] = await Promise.all([
+  const [blocksRes, entriesRes, jobItems] = await Promise.all([
     fetch(`/api/weekly-blocks?week_start=${weekStart}`),
-    fetch(`/api/day-entries?date=${currentDate}`)
+    fetch(`/api/day-entries?date=${currentDate}`),
+    fetchJobItems(currentDate, currentDate)
   ]);
   const allBlocks = await blocksRes.json();
-  const entries = await entriesRes.json();
+  const entries = (await entriesRes.json()).concat(jobItems);
   const blocks = allBlocks.filter(b => b.day_of_week === dayOfWeek);
 
   renderTimelineEntries(blocks, entries);
@@ -178,7 +189,9 @@ function renderTimelineEntries(blocks, entries) {
       <div class="entry-title">${escapeHtml(item.label || item.title)}</div>
       <div class="entry-time">${formatTime(item.start_time)}${item.end_time ? ' – ' + formatTime(item.end_time) : ''}</div>
     `;
-    if (!isBlock) {
+    if (!isBlock && item.job_item) {
+      el.addEventListener('click', () => document.querySelector('.view-tab-btn[data-view="jobs"]').click());
+    } else if (!isBlock) {
       el.addEventListener('click', () => openEntryModal(item));
     } else {
       el.addEventListener('click', () => openBlockEditModal(item));
@@ -202,6 +215,7 @@ function renderTimelineEntries(blocks, entries) {
     wrap.querySelectorAll('.timeline-untimed-item').forEach(el => {
       el.addEventListener('click', () => {
         const item = untimed.find(u => String(u.id) === el.dataset.id);
+        if (item && item.job_item) { document.querySelector('.view-tab-btn[data-view="jobs"]').click(); return; }
         if (item && item.title !== undefined) openEntryModal(item); // only day_entries are clickable (blocks have .label not .title)
       });
     });
@@ -419,11 +433,12 @@ async function loadMonthView() {
 
   const startStr = dateToStr(gridStart);
   const endStr = dateToStr(gridEnd);
-  const [entriesRes, blocksRes] = await Promise.all([
+  const [entriesRes, blocksRes, jobItems] = await Promise.all([
     fetch(`/api/day-entries?start=${startStr}&end=${endStr}`),
-    fetch(`/api/weekly-blocks?start=${getWeekStart(startStr)}&end=${endStr}`)
+    fetch(`/api/weekly-blocks?start=${getWeekStart(startStr)}&end=${endStr}`),
+    fetchJobItems(startStr, endStr)
   ]);
-  const entries = await entriesRes.json();
+  const entries = (await entriesRes.json()).concat(jobItems);
   const allBlocks = await blocksRes.json();
   const entriesByDate = {};
   entries.forEach(e => {

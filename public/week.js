@@ -10,6 +10,61 @@
     try { var r = await fetch(url); if (!r.ok) return fallback; return await r.json(); } catch (e) { return fallback; }
   }
 
+  // ---- Wide-screen layout: mini day timelines side by side ----
+  function toMin(t) { var p = t.split(':'); return (+p[0] - TIMELINE_START_HOUR) * 60 + +p[1]; }
+
+  // Lay overlapping items out side by side inside one day column.
+  function lanes(items) {
+    var list = items.map(function (it) {
+      var st = Math.max(0, toMin(it.start_time));
+      var en = it.end_time ? toMin(it.end_time) : st + 60;
+      if (en <= st) en = st + 60;
+      return { it: it, st: st, en: en, lane: 0, lanes: 1 };
+    }).sort(function (a, b) { return a.st - b.st || a.en - b.en; });
+    var cluster = [], clusterEnd = -1;
+    function flush() {
+      var n = 0; cluster.forEach(function (c) { if (c.lane + 1 > n) n = c.lane + 1; });
+      cluster.forEach(function (c) { c.lanes = n; });
+      cluster = [];
+    }
+    list.forEach(function (c) {
+      if (cluster.length && c.st >= clusterEnd) { flush(); clusterEnd = -1; }
+      var used = {};
+      cluster.forEach(function (o) { if (o.en > c.st) used[o.lane] = true; });
+      var l = 0; while (used[l]) l++;
+      c.lane = l; cluster.push(c); clusterEnd = Math.max(clusterEnd, c.en);
+    });
+    flush();
+    return list;
+  }
+
+  function buildTimeline(dates, byDate, today) {
+    var hours = TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1;
+    var h = hours * PX_PER_HOUR;
+    var gutter = '';
+    for (var i = 0; i < hours; i++) gutter += '<div class="wk-hour-label" style="top:' + (i * PX_PER_HOUR) + 'px">' + formatHourLabel(TIMELINE_START_HOUR + i) + '</div>';
+    var heads = '', allday = '', cols = '';
+    dates.forEach(function (ds) {
+      var isToday = ds === today;
+      var items = byDate[ds];
+      heads += '<div class="wk-dayhead' + (isToday ? ' today' : '') + '" data-date="' + ds + '">' + escapeHtml(dayLabel(ds)) + '</div>';
+      allday += '<div class="wk-allday-cell" data-date="' + ds + '">' + items.filter(function (x) { return !x.start_time; }).map(function (x) {
+        return '<div class="wk-allday-item" title="' + escapeHtml(x.title || '') + '" style="background:' + escapeHtml(x.color || '#2e7d32') + '">' + escapeHtml(x.title || '') + '</div>';
+      }).join('') + '</div>';
+      var timed = lanes(items.filter(function (x) { return x.start_time; }));
+      cols += '<div class="wk-col' + (isToday ? ' today' : '') + '" data-date="' + ds + '" style="height:' + h + 'px">' + timed.map(function (c) {
+        var top = (c.st / 60) * PX_PER_HOUR, ht = Math.max(20, ((c.en - c.st) / 60) * PX_PER_HOUR);
+        var w = 100 / c.lanes;
+        return '<div class="wk-entry" title="' + escapeHtml((c.it.title || '') + ' — ' + formatTime(c.it.start_time)) + '" style="top:' + top + 'px;height:' + ht + 'px;left:' + (c.lane * w) + '%;width:calc(' + w + '% - 2px);background:' + escapeHtml(c.it.color || '#2e7d32') + '">' +
+          '<div class="wk-entry-title">' + escapeHtml(c.it.title || '') + '</div><div class="wk-entry-time">' + escapeHtml(formatTime(c.it.start_time)) + '</div></div>';
+      }).join('') + '</div>';
+    });
+    return '<div class="week-cols">' +
+      '<div class="wk-row"><div class="wk-gutter"></div>' + heads + '</div>' +
+      '<div class="wk-row wk-allday-row"><div class="wk-gutter wk-allday-label">All day</div>' + allday + '</div>' +
+      '<div class="wk-row wk-body"><div class="wk-gutter" style="height:' + h + 'px;position:relative">' + gutter + '</div>' + cols + '</div></div>';
+  }
+
   async function load() {
     if (!start) start = todayStr();
     var end = addDays(start, 6);
@@ -31,6 +86,7 @@
     });
     var today = todayStr();
     var html = '';
+    var dates = Object.keys(byDate);
     Object.keys(byDate).forEach(function (ds) {
       var items = byDate[ds].sort(function (a, b) {
         if (!a.start_time && !b.start_time) return 0;
@@ -46,7 +102,7 @@
             '<span class="week-title">' + escapeHtml(it.title || '') + '</span></div>';
         }).join('') : '<div class="week-empty muted-text">Nothing scheduled</div>') + '</div>';
     });
-    $('weekGrid').innerHTML = html;
+    $('weekGrid').innerHTML = '<div class="week-list">' + html + '</div>' + buildTimeline(dates, byDate, today);
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -61,7 +117,7 @@
     $('weekNextBtn').addEventListener('click', function () { start = addDays(start, 7); load(); });
     $('weekTodayBtn').addEventListener('click', function () { start = todayStr(); load(); });
     $('weekGrid').addEventListener('click', function (e) {
-      var d = e.target.closest('.week-day'); if (!d) return;
+      var d = e.target.closest('.week-day, .wk-dayhead, .wk-col, .wk-allday-cell'); if (!d || !d.dataset.date) return;
       currentDate = d.dataset.date;
       document.querySelector('.view-tab-btn[data-view="day"]').click();
     });

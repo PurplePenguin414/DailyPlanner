@@ -313,7 +313,24 @@ main { padding: 1.25rem 1.5rem 3rem; max-width: 800px; margin: 0 auto; }
 .week-time { color: var(--text-muted); min-width: 4.6rem; flex-shrink: 0; font-size: 0.8rem; }
 .week-title { word-break: break-word; }
 .week-empty { font-size: 0.82rem; }
-@media (min-width: 900px) {
-  #weekGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.6rem; }
-  .week-day { margin-bottom: 0; }
+/* Wide screens: 7 side-by-side mini day timelines */
+.week-cols { display: none; }
+@media (min-width: 1000px) {
+  .week-list { display: none; }
+  .week-cols { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .wk-row { display: grid; grid-template-columns: 3.4rem repeat(7, minmax(0, 1fr)); }
+  .wk-gutter { border-right: 1px solid var(--border); }
+  .wk-dayhead { padding: 0.5rem 0.4rem; font-weight: 600; font-size: 0.85rem; text-align: center; border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); cursor: pointer; }
+  .wk-dayhead.today { color: var(--accent); }
+  .wk-allday-row { border-bottom: 1px solid var(--border); }
+  .wk-allday-label { font-size: 0.68rem; color: var(--text-muted); padding: 0.3rem 0.2rem; text-align: right; }
+  .wk-allday-cell { border-left: 1px solid var(--border); padding: 0.2rem; min-height: 1.6rem; cursor: pointer; }
+  .wk-allday-item { color: #fff; font-size: 0.72rem; padding: 0.15rem 0.35rem; border-radius: 4px; margin-bottom: 2px; word-break: break-word; }
+  .wk-hour-label { position: absolute; right: 0.3rem; font-size: 0.66rem; color: var(--text-muted); transform: translateY(-0.45em); }
+  .wk-col { position: relative; border-left: 1px solid var(--border); cursor: pointer; overflow: hidden;
+    background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 59px, var(--border) 59px, var(--border) 60px); }
+  .wk-col.today { background-color: rgba(74,111,165,0.06); }
+  .wk-entry { position: absolute; box-sizing: border-box; color: #fff; border-radius: 5px; padding: 0.15rem 0.3rem; overflow: hidden; font-size: 0.72rem; line-height: 1.2; border: 1px solid rgba(0,0,0,0.15); }
+  .wk-entry-title { font-weight: 600; }
+  .wk-entry-time { font-size: 0.64rem; opacity: 0.85; }
 }

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Daily Planner</title>
-<link rel="stylesheet" href="app.css?v=14">
+<link rel="stylesheet" href="app.css?v=15">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png?v=1">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png?v=1">
 <link rel="shortcut icon" href="favicon.ico?v=1">
@@ -29,6 +29,7 @@
 
   <nav class="view-tabs">
     <button class="view-tab-btn active" data-view="day">Day</button>
+    <button class="view-tab-btn" data-view="week">Week</button>
     <button class="view-tab-btn" data-view="month">Month</button>
     <button class="view-tab-btn" data-view="jobs">Jobs</button>
   </nav>
@@ -65,6 +66,17 @@
           </details>
         </div>
       </div>
+    </div>
+
+    <!-- WEEK VIEW (7 days) -->
+    <div id="weekView" class="view-panel hidden">
+      <div class="week-toolbar">
+        <button id="weekPrevBtn" class="icon-btn" title="Previous 7 days">‹</button>
+        <div class="week-label" id="weekLabel">—</div>
+        <button id="weekNextBtn" class="icon-btn" title="Next 7 days">›</button>
+        <button id="weekTodayBtn" class="secondary-btn">Today</button>
+      </div>
+      <div id="weekGrid"></div>
     </div>
 
     <!-- JOBS VIEW -->
@@ -429,7 +441,7 @@
         <div class="form-group"><label for="jobApplyBy">Apply by (for saved jobs)</label><input type="date" id="jobApplyBy"></div>
         <div class="form-group">
           <label for="jobFollowUp">Follow up on</label>
-          <input type="date" id="jobFollowUp">
+          <div class="form-row"><input type="date" id="jobFollowUp"><input type="time" id="jobFollowUpTime" title="Time (optional)"></div>
           <div class="jobs-chips">
             <button type="button" class="jobs-chip" data-days="3">+3 days</button>
             <button type="button" class="jobs-chip" data-days="7">+1 week</button>
@@ -470,7 +482,8 @@
         <div class="form-group"><label for="callSummary">What was said</label><textarea id="callSummary" rows="4" maxlength="5000"></textarea></div>
         <div class="form-group"><label for="callNext">Next step</label><input id="callNext" maxlength="500"></div>
         <div class="form-group">
-          <label for="callNextDate">Next step date</label><input type="date" id="callNextDate">
+          <label for="callNextDate">Next step date and time (time optional)</label>
+          <div class="form-row"><input type="date" id="callNextDate"><input type="time" id="callNextTime"></div>
           <label class="jobs-check"><input type="checkbox" id="callPing"> Ping me on Discord that morning</label>
           <label class="jobs-check"><input type="checkbox" id="callDone"> Next step done</label>
         </div>
@@ -484,6 +497,7 @@
   </div>
 
   <script src="app.js?v=10"></script>
-  <script src="jobs.js?v=3"></script>
+  <script src="jobs.js?v=4"></script>
+  <script src="week.js?v=1"></script>
 </body>
 </html>

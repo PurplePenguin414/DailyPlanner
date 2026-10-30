@@ -18,6 +18,11 @@
 
   function dayNum(s) { var p = s.split('-'); return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000); }
   function addDays(s, n) { return new Date((dayNum(s) + n) * 86400000).toISOString().slice(0, 10); }
+  function niceTime(t) {
+    if (!t) return '';
+    var h = +t.slice(0, 2), m = t.slice(3, 5);
+    return (h % 12 || 12) + ':' + m + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
   function niceDate(s) {
     if (!s) return '';
     var p = s.split('-');
@@ -50,8 +55,8 @@
     var diff = dayNum(j.next_follow_up) - dayNum(today);
     var cls = 'jobs-follow', txt;
     if (diff < 0) { cls += ' overdue'; txt = 'Follow-up overdue (' + niceDate(j.next_follow_up) + ')'; }
-    else if (diff === 0) { cls += ' today'; txt = 'Follow up today'; }
-    else { txt = 'Follow up ' + niceDate(j.next_follow_up); }
+    else if (diff === 0) { cls += ' today'; txt = 'Follow up today' + (j.next_follow_up_time ? ' ' + niceTime(j.next_follow_up_time) : ''); }
+    else { txt = 'Follow up ' + niceDate(j.next_follow_up) + (j.next_follow_up_time ? ' ' + niceTime(j.next_follow_up_time) : ''); }
     return '<span class="' + cls + '">' + txt + (j.follow_up_ping ? ' 🔔' : '') + '</span>';
   }
 
@@ -70,7 +75,7 @@
         else if (c.next_step_date && c.next_step_date < today) cls += ' overdue';
         else if (c.next_step_date === today) cls += ' today';
         step = '<span class="' + cls + '">' + (c.next_step_done ? 'Done: ' : 'Next: ') + esc(c.next_step || 'follow up') +
-          (c.next_step_date ? ' (' + niceDate(c.next_step_date) + ')' : '') + (c.next_step_ping && !c.next_step_done ? ' 🔔' : '') + '</span>';
+          (c.next_step_date ? ' (' + niceDate(c.next_step_date) + (c.next_step_time ? ' ' + niceTime(c.next_step_time) : '') + ')' : '') + (c.next_step_ping && !c.next_step_done ? ' 🔔' : '') + '</span>';
       }
       return '<div class="job-card call-card" data-call="' + c.id + '"><div class="job-card-top"><div class="job-card-main">' +
         '<div class="job-company">' + esc(c.contact_name) + '</div>' +
@@ -129,6 +134,7 @@
     $('jobSource').value = j.source || '';
     $('jobApplyBy').value = j.apply_by || '';
     $('jobFollowUp').value = j.next_follow_up || '';
+    $('jobFollowUpTime').value = j.next_follow_up_time || '';
     $('jobPing').checked = !!j.follow_up_ping;
     $('jobCompanyNotes').value = j.company_notes || '';
     $('jobNotes').value = j.notes || '';
@@ -150,7 +156,7 @@
       company: $('jobCompany').value, role: $('jobRole').value, status: $('jobStatus').value,
       applied_date: $('jobAppliedDate').value || null, url: $('jobUrl').value, pay_range: $('jobPay').value,
       source: $('jobSource').value, apply_by: $('jobApplyBy').value || null,
-      next_follow_up: $('jobFollowUp').value || null, follow_up_ping: $('jobPing').checked,
+      next_follow_up: $('jobFollowUp').value || null, next_follow_up_time: $('jobFollowUpTime').value || null, follow_up_ping: $('jobPing').checked,
       company_notes: $('jobCompanyNotes').value, notes: $('jobNotes').value, outcome_notes: $('jobOutcome').value
     };
     var req = editingId ? api('PUT', '/api/jobs/' + editingId, body) : api('POST', '/api/jobs', body);
@@ -181,7 +187,7 @@
     $('callDate').value = x.call_date || today; $('callTime').value = x.call_time || ''; $('callPhone').value = x.phone || ''; $('callEmail').value = x.email || '';
     sel.value = x.job_id ? String(x.job_id) : '';
     $('callSummary').value = x.summary || ''; $('callNext').value = x.next_step || '';
-    $('callNextDate').value = x.next_step_date || ''; $('callPing').checked = !!x.next_step_ping; $('callDone').checked = !!x.next_step_done;
+    $('callNextDate').value = x.next_step_date || ''; $('callNextTime').value = x.next_step_time || ''; $('callPing').checked = !!x.next_step_ping; $('callDone').checked = !!x.next_step_done;
     $('callFormError').classList.add('hidden');
     $('callModal').classList.remove('hidden'); $('callContact').focus();
   }
@@ -192,7 +198,7 @@
     var body = {
       contact_name: $('callContact').value, company: $('callCompany').value, call_date: $('callDate').value || null, call_time: $('callTime').value || null,
       phone: $('callPhone').value, email: $('callEmail').value, job_id: $('callJob').value || null,
-      summary: $('callSummary').value, next_step: $('callNext').value, next_step_date: $('callNextDate').value || null,
+      summary: $('callSummary').value, next_step: $('callNext').value, next_step_date: $('callNextDate').value || null, next_step_time: $('callNextTime').value || null,
       next_step_ping: $('callPing').checked, next_step_done: $('callDone').checked
     };
     var req = editingCallId ? api('PUT', '/api/jobs/calls/list/' + editingCallId, body) : api('POST', '/api/jobs/calls/list', body);
@@ -245,7 +251,7 @@
     document.querySelectorAll('.jobs-chip').forEach(function (c) {
       c.addEventListener('click', function () {
         var d = c.dataset.days;
-        if (d === 'clear') { $('jobFollowUp').value = ''; $('jobPing').checked = false; return; }
+        if (d === 'clear') { $('jobFollowUp').value = ''; $('jobFollowUpTime').value = ''; $('jobPing').checked = false; return; }
         $('jobFollowUp').value = addDays(today || new Date().toISOString().slice(0, 10), +d);
       });
     });

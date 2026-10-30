@@ -134,8 +134,9 @@ router.get('/feed.ics', (req, res) => {
     const label = j => (j.role ? `${j.company} (${j.role})` : j.company);
     db.prepare(`SELECT * FROM jobs WHERE next_follow_up >= ? AND next_follow_up <= ? AND status IN (${marks})`)
       .all(startStr, endStr, ...FOLLOW_UP_STATUSES).forEach(j => {
-        events.push(buildAllDayEvent({ uid: `job-${j.id}-followup@daily.megangibbs.net`, dtstamp, startDate: j.next_follow_up,
-          summary: `Follow up: ${label(j)}`, description: j.url || '' }));
+        const f = { uid: `job-${j.id}-followup@daily.megangibbs.net`, dtstamp, startDate: j.next_follow_up,
+          summary: `Follow up: ${label(j)}`, description: j.url || '' };
+        events.push(j.next_follow_up_time ? buildTimedEvent({ ...f, startTime: j.next_follow_up_time, endTime: null }) : buildAllDayEvent(f));
       });
     db.prepare(`SELECT * FROM jobs WHERE apply_by >= ? AND apply_by <= ? AND status = 'saved'`)
       .all(startStr, endStr).forEach(j => {
@@ -154,8 +155,9 @@ router.get('/feed.ics', (req, res) => {
       });
     db.prepare('SELECT * FROM job_calls WHERE next_step_date >= ? AND next_step_date <= ? AND next_step_done = 0')
       .all(startStr, endStr).forEach(c => {
-        events.push(buildAllDayEvent({ uid: `jobcall-${c.id}-next@daily.megangibbs.net`, dtstamp, startDate: c.next_step_date,
-          summary: `Next step: ${c.contact_name}${c.next_step ? ' — ' + c.next_step : ''}`, description: [c.phone, c.email].filter(Boolean).join(' · ') }));
+        const n = { uid: `jobcall-${c.id}-next@daily.megangibbs.net`, dtstamp, startDate: c.next_step_date,
+          summary: `Next step: ${c.contact_name}${c.next_step ? ' — ' + c.next_step : ''}`, description: [c.phone, c.email].filter(Boolean).join(' · ') };
+        events.push(c.next_step_time ? buildTimedEvent({ ...n, startTime: c.next_step_time, endTime: null }) : buildAllDayEvent(n));
       });
   } catch (e) { console.error('iCal job events failed:', e.message); }
 

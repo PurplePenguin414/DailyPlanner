@@ -85,14 +85,14 @@ router.get('/calendar', (req, res) => {
   const marks = FOLLOW_UP_STATUSES.map(() => '?').join(',');
   db.prepare(`SELECT * FROM jobs WHERE next_follow_up >= ? AND next_follow_up <= ? AND status IN (${marks})`)
     .all(start, end, ...FOLLOW_UP_STATUSES).forEach(j => items.push({
-      id: 'job-f-' + j.id, entry_date: j.next_follow_up, title: 'Follow up: ' + lab(j), start_time: null, end_time: null, color: COLOR, job_item: true }));
+      id: 'job-f-' + j.id, entry_date: j.next_follow_up, title: 'Follow up: ' + lab(j), start_time: j.next_follow_up_time || null, end_time: null, color: COLOR, job_item: true }));
   db.prepare("SELECT * FROM jobs WHERE apply_by >= ? AND apply_by <= ? AND status = 'saved'")
     .all(start, end).forEach(j => items.push({
       id: 'job-a-' + j.id, entry_date: j.apply_by, title: 'Apply by: ' + lab(j), start_time: null, end_time: null, color: COLOR, job_item: true }));
   db.prepare('SELECT * FROM job_calls WHERE next_step_date >= ? AND next_step_date <= ? AND next_step_done = 0')
     .all(start, end).forEach(c => items.push({
       id: 'job-n-' + c.id, entry_date: c.next_step_date, title: `Next step: ${c.contact_name}${c.next_step ? ' — ' + c.next_step : ''}`,
-      start_time: null, end_time: null, color: COLOR, job_item: true }));
+      start_time: c.next_step_time || null, end_time: null, color: COLOR, job_item: true }));
   db.prepare('SELECT * FROM job_calls WHERE call_date >= ? AND call_date <= ?')
     .all(start, end).forEach(c => items.push({
       id: 'job-c-' + c.id, entry_date: c.call_date, title: `Call: ${c.contact_name}${c.company ? ' (' + c.company + ')' : ''}`,
@@ -136,9 +136,9 @@ router.delete('/calls/list/:id', (req, res) => {
 router.todayItems = function (today) {
   const marks = FOLLOW_UP_STATUSES.map(() => '?').join(',');
   const follow = db.prepare(
-    `SELECT company, role FROM jobs WHERE next_follow_up IS NOT NULL AND next_follow_up <= ? AND status IN (${marks})`
+    `SELECT company, role, next_follow_up, next_follow_up_time FROM jobs WHERE next_follow_up IS NOT NULL AND next_follow_up <= ? AND status IN (${marks})`
   ).all(today, ...FOLLOW_UP_STATUSES).map(j => ({
-    title: `Follow up: ${j.role ? j.company + ' (' + j.role + ')' : j.company}`, start_time: null, end_time: null, color: null
+    title: `Follow up: ${j.role ? j.company + ' (' + j.role + ')' : j.company}`, start_time: j.next_follow_up === today ? (j.next_follow_up_time || null) : null, end_time: null, color: null
   }));
   const apply = db.prepare(
     `SELECT company, role FROM jobs WHERE apply_by = ? AND status = 'saved'`
@@ -146,9 +146,9 @@ router.todayItems = function (today) {
     title: `Apply by today: ${j.role ? j.company + ' (' + j.role + ')' : j.company}`, start_time: null, end_time: null, color: null
   }));
   const steps = db.prepare(
-    `SELECT contact_name, next_step FROM job_calls WHERE next_step_date IS NOT NULL AND next_step_date <= ? AND next_step_done = 0`
+    `SELECT contact_name, next_step, next_step_date, next_step_time FROM job_calls WHERE next_step_date IS NOT NULL AND next_step_date <= ? AND next_step_done = 0`
   ).all(today).map(c => ({
-    title: `Call next step: ${c.contact_name}${c.next_step ? ' — ' + c.next_step : ''}`, start_time: null, end_time: null, color: null
+    title: `Call next step: ${c.contact_name}${c.next_step ? ' — ' + c.next_step : ''}`, start_time: c.next_step_date === today ? (c.next_step_time || null) : null, end_time: null, color: null
   }));
   const todays = db.prepare('SELECT contact_name, company, call_time FROM job_calls WHERE call_date = ?').all(today).map(c => ({
     title: `Call: ${c.contact_name}${c.company ? ' (' + c.company + ')' : ''}`, start_time: c.call_time || null, end_time: null, color: null

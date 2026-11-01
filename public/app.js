@@ -164,6 +164,34 @@ function timeToMinutesFromStart(timeStr) {
   return (h - TIMELINE_START_HOUR) * 60 + m;
 }
 
+// Side-by-side layout for overlapping timed items. Returns a Map of
+// item -> { lane, lanes } so overlapping items share the width instead of stacking.
+function computeLanes(items) {
+  const list = items.filter(i => i.start_time).map(i => {
+    const st = Math.max(0, timeToMinutesFromStart(i.start_time));
+    let en = i.end_time ? timeToMinutesFromStart(i.end_time) : st + 60;
+    if (en <= st) en = st + 60;
+    en = Math.max(en, st + 20); // entries are drawn at least 20px (20 min) tall
+    return { i, st, en, lane: 0 };
+  }).sort((a, b) => a.st - b.st || a.en - b.en);
+  const result = new Map();
+  let cluster = [], clusterEnd = -1;
+  const flush = () => {
+    const n = cluster.reduce((m, c) => Math.max(m, c.lane + 1), 1);
+    cluster.forEach(c => result.set(c.i, { lane: c.lane, lanes: n }));
+    cluster = [];
+  };
+  list.forEach(c => {
+    if (cluster.length && c.st >= clusterEnd) { flush(); clusterEnd = -1; }
+    const used = {};
+    cluster.forEach(o => { if (o.en > c.st) used[o.lane] = true; });
+    let l = 0; while (used[l]) l++;
+    c.lane = l; cluster.push(c); clusterEnd = Math.max(clusterEnd, c.en);
+  });
+  flush();
+  return result;
+}
+
 function renderTimelineEntries(blocks, entries) {
   // Remove any previously-rendered entry elements, keep the hour-row skeleton
   document.querySelectorAll('.timeline-entry').forEach(el => el.remove());
@@ -172,6 +200,7 @@ function renderTimelineEntries(blocks, entries) {
 
   const timeline = document.getElementById('timeline');
   const untimed = [];
+  const laneMap = computeLanes([...blocks, ...entries]);
 
   const renderBlockEl = (item, isBlock) => {
     if (!item.start_time) { untimed.push(item); return; }
@@ -184,6 +213,13 @@ function renderTimelineEntries(blocks, entries) {
     el.className = 'timeline-entry' + (item.source === 'google' ? ' readonly' : '');
     el.style.top = `${top}px`;
     el.style.height = `${height}px`;
+    const pos = laneMap.get(item);
+    if (pos && pos.lanes > 1) {
+      // Share the width (64px hour gutter on the left, 8px margin on the right)
+      el.style.right = 'auto';
+      el.style.left = `calc(64px + (100% - 72px) * ${pos.lane} / ${pos.lanes})`;
+      el.style.width = `calc((100% - 72px) / ${pos.lanes} - 2px)`;
+    }
     el.style.background = item.color || (isBlock ? '#4a6fa5' : '#2e7d32');
     el.innerHTML = `
       <div class="entry-title">${escapeHtml(item.label || item.title)}</div>
